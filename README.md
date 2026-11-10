@@ -93,7 +93,9 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 후 다시 sync합니다. 사용자 수정 파일을 임의로 덮어쓰지 않습니다.
 
 현재는 초기 MVP이며, 모바일 빌드·실기기 확인과 패키지 배포는 별도 단계입니다.
-AI·영상·다른 상태관리나 아키텍처 프리셋은 아직 구현하지 않았습니다.
+data·security·network, AI, 상태관리·아키텍처 프리셋은 아직 구현하지 않았습니다.
+확장 방향은 [모듈 설계](docs/modules.md#adopted-architecture-direction)에 정리했습니다.
+NVR·RTSP는 프로젝트 범위에서 제외합니다.
 
 ## Upstream projects
 
