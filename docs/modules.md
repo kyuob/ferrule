@@ -7,7 +7,7 @@ apps; it must not become an unconditional dependency of the core builder templat
 
 - Official FRB generator owns Flutter platform scaffold, Rust linkage and generated bindings.
 - Ferrule owns `lib/main.dart`, `rust/src/api/core.rs` and module registration in `rust/src/api/mod.rs`.
-- `ferrule.toml` records schema, bridge version, selected modules and owned-template hashes.
+- `ferrule.toml` records schema, bridge version, selected module versions and owned-template hashes.
 - App UI is Dart/Flutter; exported API is Rust; substantive domain logic should be extracted
   below the API layer as the app grows. This MVP does not impose a state management library.
 - iOS/Android are the initial generated targets. Desktop/web presets are not exposed yet.
@@ -43,13 +43,13 @@ analysis and both platform builds afterward. Arbitrary existing Flutter apps are
 
 ## Adopted architecture direction
 
-The following is the development plan, not a description of implemented functionality.
+The following separates implemented module infrastructure from future app capabilities.
 The executable and project record remain `ferrule` and `ferrule.toml`; `rfb` is not a second tool.
 NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's scope.
 
 | Component | Responsibility | Current status |
 | --- | --- | --- |
-| core | Project creation, bridge/codegen, module composition, platform build configuration | Basic generator implemented; architecture/runtime presets planned |
+| core | Project creation, bridge/codegen, module composition, platform build configuration | Generator, embedded contracts, resolver and settings merge implemented; architecture/runtime presets planned |
 | ble | Optional central BLE transport and Rust sensor protocol handling | Flutter transport + scanner implemented; GATT/device validation pending |
 | data | Rust-owned local persistence and migrations | Planned; no database adapter installed |
 | security | Platform key storage plus Rust application encryption | Planned; no cryptographic service installed |
@@ -57,7 +57,13 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 
 ### Module contract
 
-Each module will declare one versioned manifest covering these pieces:
+The embedded `modules/*.toml` manifests now declare identity/version/availability, platforms,
+`requires`/`conflicts`, Rust/Flutter dependency fragments, template files, API registrations,
+Android declarations, iOS string settings, prerequisites and check descriptions. Catalog
+data is compiled into Ferrule, not loaded as arbitrary external code. Checks/prerequisites
+are descriptive metadata; the resolver does not execute them or imply device validation.
+
+The complete long-term module contract covers these pieces:
 
 1. Identity/version, template compatibility, supported platforms/SDKs and verification status.
 2. Rust crates/features and Flutter plugins with tested version constraints.
@@ -90,10 +96,22 @@ unrelated user values and comments where the selected parser supports it. Gradle
 code: use narrowly owned insertion blocks, detect customized/ambiguous structures and refuse
 unsafe changes. It is not made structurally safe merely by surrounding text replacement with markers.
 
-Keep the current hash/collision protections until this replacement is verified. Plan all file changes
+The current implementation uses comment-preserving TOML/YAML edits and XML node-boundary
+insertion after parsing and checking existing declarations. The XML/plist merger preserves every
+original byte outside insertions, including namespaces, comments and the plist DTD. Existing
+declarations are compared by namespace-qualified identity and policy; conflicting values are refused.
+Gradle patches and generalized nested plist value changes are not implemented.
+
+Hash/collision protections still guard owned Dart/Rust source templates. Plan all file changes
 before writing, retain recoverable originals and make repeat application idempotent. Future upgrades
 need previous-template hashes plus current files for a three-way comparison; do not just overwrite
-user changes with the new module fragments. Neither structural merging nor `upgrade` is implemented yet.
+user changes with the new module fragments. Structural configuration merging is implemented;
+`upgrade`, removal and general three-way source merging are not.
+
+`ferrule add ble --dry-run` returns the resolved selection, newly added modules and exact changed
+file paths with create/update actions and before/after hashes. It does not write a lock or project
+files and does not expose configuration contents. Applying resolves/rechecks the current project
+again under the operation lock. Older schema-1 records without module versions remain supported.
 
 ### Backend choices and corrections to the reference design
 
@@ -121,8 +139,8 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
 
 ### Implementation order and gates
 
-1. Extract the core/module catalog and dependency resolver from the current BLE-specific CLI.
-   Add conflict/cycle tests, merge previews and structural patches while retaining existing commands.
+1. Implemented: embedded core/module catalog, dependency resolver, conflict/cycle tests,
+   read-only add previews and structural dependency/platform patches. Existing commands remain compatible.
 2. Add the generated `domain / ports / usecase / infra / api` skeleton and a small data-only app.
    Verify paths, migrations, restart persistence and iOS/Android builds before adding encryption.
 3. Add security and an encrypted-notes example. Test data and security independently and together;
@@ -132,8 +150,9 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
 5. Add network with verified TLS defaults, then supported combination tests. Begin with HTTP;
    WebSocket and QUIC are separate increments, not automatic promises.
 
-Proposed future syntax: `ferrule new notes --modules data,security`. It does not work in the MVP;
-currently use `ferrule new app [--ble]` and `ferrule add ble`.
+Implemented syntax: `ferrule new app --modules ble`, `ferrule add ble --dry-run`, and `ferrule add ble`.
+`--ble` remains a shorthand. `ferrule new notes --modules data,security` is future syntax for planned
+modules and currently returns an unavailable-module error without creating a project.
 
 For four optional modules, the eventual core-plus-subset matrix has 16 selections. Run generator
 and feature/dependency checks for every declared supported selection, plus iOS/Android compilation.

@@ -6,6 +6,10 @@ fn fixture() -> tempfile::TempDir {
         (API_MOD, "pub mod simple;\n"),
         (MAIN, "// upstream main\n"),
         (
+            "rust/Cargo.toml",
+            "[dependencies]\nflutter_rust_bridge = '=2.13.0'\n",
+        ),
+        (
             "pubspec.yaml",
             "name: demo\nenvironment:\n  sdk: ^3.6.0\ndependencies:\n  flutter:\n    sdk: flutter\n",
         ),
@@ -186,4 +190,75 @@ fn safe_paths_reject_parent_traversal() {
     let dir = tempfile::tempdir().unwrap();
     assert!(safe_path(dir.path(), "../outside").is_err());
     assert!(safe_path(dir.path(), "/outside").is_err());
+}
+
+#[test]
+fn preview_does_not_write_and_matches_applied_file_hashes() {
+    let project = fixture();
+    let before = read(project.path(), MANIFEST).unwrap();
+    let preview = preview_add(project.path(), &["ble".into()]).unwrap();
+    assert_eq!(preview.added_modules, ["ble"]);
+    assert_eq!(preview.modules, ["core", "ble"]);
+    assert!(!project.path().join(".ferrule.lock").exists());
+    assert!(!project.path().join("lib/features").exists());
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), before);
+    add_modules(project.path(), &["ble".into()]).unwrap();
+    for change in preview.changes {
+        assert_eq!(
+            digest(&fs::read(project.path().join(change.path)).unwrap()),
+            change.after_sha256
+        );
+    }
+    assert!(
+        preview_add(project.path(), &["ble".into()])
+            .unwrap()
+            .changes
+            .is_empty()
+    );
+}
+
+#[test]
+fn older_schema_one_project_can_add_a_module_without_losing_comments() {
+    let project = fixture();
+    let mut record: toml_edit::DocumentMut =
+        read(project.path(), MANIFEST).unwrap().parse().unwrap();
+    record.remove("module_versions");
+    fs::write(
+        project.path().join(MANIFEST),
+        format!("# keep my project note\n{record}"),
+    )
+    .unwrap();
+    add_ble(project.path()).unwrap();
+    let record = read(project.path(), MANIFEST).unwrap();
+    assert!(record.contains("# keep my project note"));
+    assert_eq!(
+        load(project.path())
+            .unwrap()
+            .module_versions
+            .get("ble")
+            .unwrap(),
+        "0.1.0"
+    );
+}
+
+#[test]
+fn module_conflict_is_detected_before_any_file_changes() {
+    let project = fixture();
+    let path = "pubspec.yaml";
+    let original = read(project.path(), path).unwrap();
+    let custom = format!("{original}\ndependency_overrides:\n  flutter_reactive_ble: any\n");
+    fs::write(project.path().join(path), &custom).unwrap();
+    let before = read(project.path(), MANIFEST).unwrap();
+    assert!(add_modules(project.path(), &["ble".into()]).is_err());
+    assert_eq!(read(project.path(), path).unwrap(), custom);
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), before);
+    assert!(!project.path().join("rust/src/api/ble.rs").exists());
+}
+
+#[test]
+fn planned_selection_is_rejected_before_lock_or_project_loading() {
+    let empty = tempfile::tempdir().unwrap();
+    let error = add_modules(empty.path(), &["data".into()]).unwrap_err();
+    assert!(error.to_string().contains("planned"));
+    assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
 }

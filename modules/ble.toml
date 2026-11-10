@@ -1,0 +1,75 @@
+schema = 1
+id = "ble"
+version = "0.1.0"
+availability = "available"
+description = "Optional Flutter-native mobile BLE scanner and Rust packet decoding"
+platforms = ["ios", "android"]
+requires = ["core"]
+conflicts = []
+api_modules = ["ble"]
+prerequisites = ["Flutter >=3.41 / Dart >=3.11", "Bluetooth hardware and authorization for device validation"]
+checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml", "device scan/permission/cancellation checks (not yet verified)"]
+
+[flutter_dependencies]
+flutter_reactive_ble = "5.5.0"
+permission_handler = "13.0.2"
+device_info_plus = "11.5.0"
+
+[[files]]
+path = "lib/main.dart"
+template = "ble/main.dart"
+mode = "owned"
+
+[[files]]
+path = "lib/features/ble/ble_page.dart"
+template = "ble/ble_page.dart"
+mode = "create"
+
+[[files]]
+path = "lib/features/ble/ble_transport.dart"
+template = "ble/ble_transport.dart"
+mode = "create"
+
+[[files]]
+path = "rust/src/api/ble.rs"
+template = "ble/ble.rs"
+mode = "create"
+
+[[android]]
+element = "uses-feature"
+name = "android.hardware.bluetooth_le"
+[android.attributes]
+required = "false"
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.BLUETOOTH"
+[android.attributes]
+maxSdkVersion = "30"
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.BLUETOOTH_ADMIN"
+[android.attributes]
+maxSdkVersion = "30"
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.ACCESS_FINE_LOCATION"
+[android.attributes]
+maxSdkVersion = "30"
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.BLUETOOTH_SCAN"
+[android.attributes]
+usesPermissionFlags = "neverForLocation"
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.BLUETOOTH_CONNECT"
+
+[[ios]]
+key = "NSBluetoothAlwaysUsageDescription"
+value = "Discover nearby Bluetooth sensors when you start a scan."
+preserve_existing = true

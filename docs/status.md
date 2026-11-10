@@ -4,14 +4,22 @@
 
 - Rust CLI: project plan/create, module list, toolchain doctor, optional BLE install, sync.
 - Core has no BLE dependency or permission.
+- Embedded versioned module contracts, deterministic dependency resolution and `--modules ble` selection.
+- Parsed Cargo/pubspec/platform settings merge and read-only `add --dry-run` file previews.
+- Planned modules are visible but not selectable; older schema-1 records remain readable.
 - Existing destinations, modified owned files, module path collisions and symlink paths are protected.
 - Three-OS offline CLI CI definition; triggered by the initial GitHub push.
 
 ## Verification
 
-- Offline run: 11 library tests + 3 CLI tests passed on macOS ARM64; rustfmt and Clippy passed.
+- Bootstrap offline run: 11 library tests + 3 CLI tests passed on macOS ARM64; rustfmt and Clippy passed.
+- Module foundation: 28 library tests + 6 CLI tests passed on macOS ARM64, including
+  dependency ordering/cycles/conflicts, version policies, structural merge preservation,
+  write-free previews, preview/apply hashes and older schema-1 project compatibility.
 - Real generated-app smoke passed on Flutter 3.41.2 / Dart 3.11.0 / FRB 2.13.0:
   core create → sync → Flutter analyze → Rust tests → add BLE → sync → Flutter analyze → Rust tests → repeat add.
+- Extended module smoke also checks read-only add preview and a second app created directly
+  with `--modules ble`, followed by sync, clean Dart analysis and Rust tests.
 - Core and BLE Dart analysis reported no issues; Rust example tests exercised safe integer
   addition and BLE payload decoding. This is host compilation, not an iOS/Android build.
 - iOS/Android device builds and BLE discovery on hardware: not yet verified.
@@ -30,7 +38,7 @@ The reviewed [module architecture](modules.md#adopted-architecture-direction) ke
 Flutter project builder as the main product and excludes NVR/RTSP entirely. Planned optional
 modules are BLE, data, security and network; only the BLE scanner is implemented today.
 
-Next work is module contracts/dependency resolution and safe configuration merging, followed
-by the architecture skeleton and data, security, BLE expansion, then network. These are development
+Module contracts/dependency resolution and configuration merging are implemented. Next work is
+the architecture skeleton and data, security, BLE expansion, then network. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

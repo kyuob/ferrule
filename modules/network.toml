@@ -1,0 +1,8 @@
+schema = 1
+id = "network"
+version = "0.0.0"
+availability = "planned"
+description = "Planned TLS HTTP networking; not installable"
+platforms = ["ios", "android"]
+requires = ["core"]
+conflicts = []

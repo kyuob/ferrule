@@ -9,8 +9,13 @@ use std::{
     process::Command,
 };
 
+pub mod catalog;
+mod merge;
+use catalog::{Catalog, FileMode};
+
 pub const BRIDGE_VERSION: &str = "2.13.0";
 const MANIFEST: &str = "ferrule.toml";
+#[cfg(test)]
 const MAIN: &str = "lib/main.dart";
 const API_MOD: &str = "rust/src/api/mod.rs";
 
@@ -22,6 +27,7 @@ pub struct Plan {
     pub bridge_version: String,
     pub modules: Vec<String>,
     pub ble_transport: Option<String>,
+    pub module_versions: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,22 +38,33 @@ struct Manifest {
     bridge_version: String,
     modules: Vec<String>,
     managed: BTreeMap<String, String>,
+    #[serde(default)]
+    module_versions: BTreeMap<String, String>,
 }
 
 pub fn plan(name: &str, directory: &Path, ble: bool) -> Result<Plan> {
+    let modules = if ble { vec!["ble".into()] } else { vec![] };
+    plan_with_modules(name, directory, &modules)
+}
+
+pub fn plan_with_modules(name: &str, directory: &Path, requested: &[String]) -> Result<Plan> {
     validate_name(name)?;
+    let catalog = Catalog::embedded()?;
+    let resolved = catalog.resolve(requested, &["ios", "android"])?;
+    let modules: Vec<_> = resolved.iter().map(|m| m.id.clone()).collect();
+    let ble = modules.iter().any(|id| id == "ble");
     Ok(Plan {
         name: name.into(),
         destination: directory.join(name),
         platforms: vec!["ios".into(), "android".into()],
         bridge_version: BRIDGE_VERSION.into(),
-        modules: if ble {
-            vec!["core".into(), "ble".into()]
-        } else {
-            vec!["core".into()]
-        },
+        modules,
         ble_transport: ble
             .then(|| "flutter_reactive_ble (native mobile transport); Rust packet decoding".into()),
+        module_versions: resolved
+            .iter()
+            .map(|m| (m.id.clone(), m.version.clone()))
+            .collect(),
     })
 }
 
@@ -138,7 +155,12 @@ pub fn doctor() -> Result<()> {
 }
 
 pub fn create(name: &str, directory: &Path, ble: bool) -> Result<PathBuf> {
-    plan(name, directory, ble)?;
+    let modules = if ble { vec!["ble".into()] } else { vec![] };
+    create_with_modules(name, directory, &modules)
+}
+
+pub fn create_with_modules(name: &str, directory: &Path, requested: &[String]) -> Result<PathBuf> {
+    let plan = plan_with_modules(name, directory, requested)?;
     ensure!(
         directory.is_dir(),
         "parent directory must already exist: {}",
@@ -169,9 +191,7 @@ pub fn create(name: &str, directory: &Path, ble: bool) -> Result<PathBuf> {
     )?;
     let project = staging.path().join(name);
     initialize(&project, name)?;
-    if ble {
-        add_ble(&project)?;
-    }
+    add_modules(&project, &plan.modules)?;
     // Reserve the destination: a competing creator must not be overwritten.
     fs::create_dir(&target).context("destination appeared during generation")?;
     let mut entries = fs::read_dir(&project)?.collect::<std::io::Result<Vec<_>>>()?;
@@ -192,18 +212,19 @@ pub fn create(name: &str, directory: &Path, ble: bool) -> Result<PathBuf> {
 /// Initialize a freshly generated, unpublished staging directory.
 fn initialize(project: &Path, name: &str) -> Result<()> {
     let mut changes = BTreeMap::new();
-    changes.insert(
-        MAIN.into(),
-        include_str!("../templates/core/main.dart").to_string(),
-    );
-    changes.insert(
-        "rust/src/api/core.rs".into(),
-        include_str!("../templates/core/core.rs").to_string(),
-    );
-    changes.insert(
-        "integration_test/simple_test.dart".into(),
-        include_str!("../templates/core/bridge_test.dart").replace("APP_PACKAGE", name),
-    );
+    let catalog = Catalog::embedded()?;
+    let core = catalog.get("core")?;
+    for file in &core.files {
+        changes.insert(
+            file.path.clone(),
+            catalog::template(&file.template)?.replace("APP_PACKAGE", name),
+        );
+    }
+    let cargo = read(project, "rust/Cargo.toml")?;
+    let merged = merge::cargo(&cargo, &core.cargo_dependencies)?;
+    if merged != cargo {
+        changes.insert("rust/Cargo.toml".into(), merged);
+    }
     let api = read(project, API_MOD)?;
     ensure!(!api.contains("pub mod core;"), "core module already exists");
     changes.insert(API_MOD.into(), format!("{api}\npub mod core;\n"));
@@ -213,8 +234,15 @@ fn initialize(project: &Path, name: &str) -> Result<()> {
         bridge_version: BRIDGE_VERSION.into(),
         modules: vec!["core".into()],
         managed: BTreeMap::new(),
+        module_versions: BTreeMap::from([("core".into(), core.version.clone())]),
     };
-    for key in [MAIN, API_MOD] {
+    for key in core
+        .files
+        .iter()
+        .filter(|f| f.mode == FileMode::Owned)
+        .map(|f| f.path.as_str())
+        .chain([API_MOD])
+    {
         manifest
             .managed
             .insert(key.into(), digest(changes[key].as_bytes()));
@@ -232,10 +260,23 @@ fn load(project: &Path) -> Result<Manifest> {
     );
     validate_name(&manifest.name)?;
     ensure!(
-        manifest.modules.iter().all(|m| m == "core" || m == "ble")
-            && manifest.modules.iter().any(|m| m == "core"),
-        "unknown project modules"
+        manifest.modules.iter().any(|m| m == "core"),
+        "core is missing from project modules"
     );
+    let catalog = Catalog::embedded()?;
+    let resolved = catalog.resolve(&manifest.modules, &["ios", "android"])?;
+    let expected: std::collections::BTreeSet<_> = resolved.iter().map(|m| &m.id).collect();
+    let recorded: std::collections::BTreeSet<_> = manifest.modules.iter().collect();
+    ensure!(
+        expected == recorded && recorded.len() == manifest.modules.len(),
+        "incomplete or duplicate project module records"
+    );
+    for (id, version) in &manifest.module_versions {
+        ensure!(
+            recorded.contains(id) && catalog.get(id)?.version == *version,
+            "unsupported recorded module version: {id}"
+        );
+    }
     Ok(manifest)
 }
 
@@ -262,87 +303,221 @@ fn lock(project: &Path) -> Result<Lock> {
 }
 
 pub fn add_ble(project: &Path) -> Result<bool> {
+    Ok(!add_modules(project, &["ble".into()])?
+        .added_modules
+        .is_empty())
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileChange {
+    pub path: String,
+    pub action: &'static str,
+    pub before_sha256: Option<String>,
+    pub after_sha256: String,
+    pub after_bytes: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ModulePreview {
+    pub modules: Vec<String>,
+    pub added_modules: Vec<String>,
+    pub changes: Vec<FileChange>,
+}
+
+struct PreparedChanges {
+    preview: ModulePreview,
+    contents: BTreeMap<String, String>,
+}
+
+pub fn preview_add(project: &Path, requested: &[String]) -> Result<ModulePreview> {
+    Ok(prepare_add(project, requested)?.preview)
+}
+
+pub fn add_modules(project: &Path, requested: &[String]) -> Result<ModulePreview> {
+    // Reject unavailable selections before even creating an operation lock.
+    Catalog::embedded()?.resolve(requested, &["ios", "android"])?;
     let _lock = lock(project)?;
+    let prepared = prepare_add(project, requested)?;
+    apply_changes(project, &prepared.contents)?;
+    Ok(prepared.preview)
+}
+
+fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> {
+    let catalog = Catalog::embedded()?;
+    catalog.resolve(requested, &["ios", "android"])?;
+    ensure!(
+        project.is_dir() && !project.symlink_metadata()?.file_type().is_symlink(),
+        "project must be a real directory"
+    );
     let mut manifest = load(project)?;
-    if manifest.modules.iter().any(|m| m == "ble") {
-        return Ok(false);
+    let mut selection = manifest.modules.clone();
+    selection.extend_from_slice(requested);
+    let resolved = catalog.resolve(&selection, &["ios", "android"])?;
+    let modules: Vec<_> = resolved.iter().map(|m| m.id.clone()).collect();
+    let added: Vec<_> = resolved
+        .iter()
+        .filter(|m| !manifest.modules.contains(&m.id))
+        .collect();
+    let mut changes = BTreeMap::new();
+    let mut owned = std::collections::BTreeSet::new();
+    for module in &added {
+        for file in &module.files {
+            let path = safe_path(project, &file.path)?;
+            ensure!(
+                !changes.contains_key(&file.path),
+                "modules write the same file: {}",
+                file.path
+            );
+            match file.mode {
+                FileMode::Create => ensure!(
+                    path.symlink_metadata().is_err(),
+                    "module file already exists: {}",
+                    file.path
+                ),
+                FileMode::Owned => {
+                    ensure!(
+                        manifest.managed.get(&file.path)
+                            == Some(&digest(read(project, &file.path)?.as_bytes())),
+                        "{} was edited; preserve your changes and merge manually (see docs/modules.md)",
+                        file.path
+                    );
+                    owned.insert(file.path.clone());
+                }
+            }
+            changes.insert(
+                file.path.clone(),
+                catalog::template(&file.template)?.replace("APP_PACKAGE", &manifest.name),
+            );
+        }
     }
-    let mut changes: BTreeMap<String, String> = BTreeMap::new();
-    // Main and API registration are owned templates. Preserve user modifications.
-    for path in [MAIN, API_MOD] {
+    if !added.is_empty() {
         ensure!(
-            manifest.managed.get(path) == Some(&digest(read(project, path)?.as_bytes())),
-            "{path} was edited; preserve your changes and add BLE to a fresh project or merge manually (see docs/modules.md)"
+            manifest.managed.get(API_MOD) == Some(&digest(read(project, API_MOD)?.as_bytes())),
+            "{API_MOD} was edited; merge manually"
         );
+        let mut api = read(project, API_MOD)?;
+        let mut flutter_dependencies = BTreeMap::new();
+        let mut cargo_dependencies: BTreeMap<String, catalog::CargoDependency> = BTreeMap::new();
+        let mut android_entries = Vec::new();
+        let mut ios_entries = Vec::new();
+        for module in &resolved {
+            flutter_dependencies.extend(module.flutter_dependencies.clone());
+            for (name, dep) in &module.cargo_dependencies {
+                if let Some(existing) = cargo_dependencies.get_mut(name) {
+                    existing.features.extend(dep.features.clone());
+                } else {
+                    cargo_dependencies.insert(name.clone(), dep.clone());
+                }
+            }
+        }
+        for module in &added {
+            for name in &module.api_modules {
+                ensure!(
+                    name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                    "invalid API module identifier"
+                );
+                let statement = format!("pub mod {name};");
+                ensure!(
+                    !api.contains(&statement),
+                    "API module already registered: {name}"
+                );
+                api.push_str(&format!("\n{statement}\n"));
+            }
+            android_entries.extend(module.android.clone());
+            ios_entries.extend(module.ios.clone());
+        }
+        changes.insert(API_MOD.into(), api);
+        owned.insert(API_MOD.into());
+        for (path, merged) in [
+            (
+                "pubspec.yaml",
+                merge::flutter(&read(project, "pubspec.yaml")?, &flutter_dependencies)?,
+            ),
+            (
+                "rust/Cargo.toml",
+                merge::cargo(&read(project, "rust/Cargo.toml")?, &cargo_dependencies)?,
+            ),
+            (
+                "android/app/src/main/AndroidManifest.xml",
+                merge::android(
+                    &read(project, "android/app/src/main/AndroidManifest.xml")?,
+                    &android_entries,
+                )?,
+            ),
+            (
+                "ios/Runner/Info.plist",
+                merge::ios(&read(project, "ios/Runner/Info.plist")?, &ios_entries)?,
+            ),
+        ] {
+            if merged != read(project, path)? {
+                ensure!(
+                    !changes.contains_key(path),
+                    "module settings collide with owned file: {path}"
+                );
+                changes.insert(path.into(), merged);
+            }
+        }
+        for path in owned {
+            manifest
+                .managed
+                .insert(path.clone(), digest(changes[&path].as_bytes()));
+        }
+        manifest.modules = modules.clone();
+        manifest.module_versions = resolved
+            .iter()
+            .map(|m| (m.id.clone(), m.version.clone()))
+            .collect();
+        // Edit only Ferrule's owned record fields; preserve comments in older schema-1 files.
+        let mut document: toml_edit::DocumentMut = read(project, MANIFEST)?.parse()?;
+        let mut module_array = toml_edit::Array::new();
+        for id in &manifest.modules {
+            module_array.push(id.as_str());
+        }
+        document["modules"] = toml_edit::value(module_array);
+        for (section, values) in [
+            ("managed", &manifest.managed),
+            ("module_versions", &manifest.module_versions),
+        ] {
+            if !document.contains_key(section) {
+                document[section] = toml_edit::Item::Table(toml_edit::Table::new());
+            }
+            let table = document[section]
+                .as_table_like_mut()
+                .context("invalid Ferrule record table")?;
+            for (key, value) in values {
+                table.insert(key, toml_edit::value(value.as_str()));
+            }
+        }
+        changes.insert(MANIFEST.into(), document.to_string());
     }
-    for path in [
-        "lib/features/ble/ble_page.dart",
-        "lib/features/ble/ble_transport.dart",
-        "rust/src/api/ble.rs",
-    ] {
-        ensure!(
-            safe_path(project, path)?.symlink_metadata().is_err(),
-            "module file already exists: {path}"
-        );
+    let mut file_changes = Vec::new();
+    for (path, content) in &changes {
+        let target = safe_path(project, path)?;
+        let previous = match fs::read(target) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e).context("cannot inspect planned file"),
+        };
+        file_changes.push(FileChange {
+            path: path.clone(),
+            action: if previous.is_some() {
+                "update"
+            } else {
+                "create"
+            },
+            before_sha256: previous.as_ref().map(|bytes| digest(bytes)),
+            after_sha256: digest(content.as_bytes()),
+            after_bytes: content.len(),
+        });
     }
-    let pubspec = read(project, "pubspec.yaml")?;
-    ensure!(
-        !pubspec.contains("flutter_reactive_ble:")
-            && !pubspec.contains("permission_handler:")
-            && !pubspec.contains("device_info_plus:"),
-        "BLE dependencies already exist; merge manually"
-    );
-    changes.insert("pubspec.yaml".into(), replace_once(&pubspec, "\ndependencies:\n", "\ndependencies:\n  flutter_reactive_ble: 5.5.0\n  permission_handler: 13.0.2\n  device_info_plus: 11.5.0\n")?);
-    let android = "android/app/src/main/AndroidManifest.xml";
-    let xml = read(project, android)?;
-    ensure!(
-        !xml.contains("android.permission.BLUETOOTH"),
-        "Bluetooth declarations already exist; merge manually"
-    );
-    changes.insert(
-        android.into(),
-        replace_once(
-            &xml,
-            "</manifest>",
-            include_str!("../templates/ble/android_permissions.xml"),
-        )?,
-    );
-    let ios = "ios/Runner/Info.plist";
-    let plist = read(project, ios)?;
-    ensure!(
-        !plist.contains("NSBluetoothAlwaysUsageDescription"),
-        "Bluetooth usage description already exists; merge manually"
-    );
-    changes.insert(ios.into(), replace_once(&plist, "</dict>\n</plist>", "\t<key>NSBluetoothAlwaysUsageDescription</key>\n\t<string>Discover nearby Bluetooth sensors when you start a scan.</string>\n</dict>\n</plist>")?);
-    changes.insert(
-        MAIN.into(),
-        include_str!("../templates/ble/main.dart").into(),
-    );
-    changes.insert(
-        API_MOD.into(),
-        format!("{}\npub mod ble;\n", read(project, API_MOD)?),
-    );
-    changes.insert(
-        "lib/features/ble/ble_page.dart".into(),
-        include_str!("../templates/ble/ble_page.dart").into(),
-    );
-    changes.insert(
-        "lib/features/ble/ble_transport.dart".into(),
-        include_str!("../templates/ble/ble_transport.dart").into(),
-    );
-    changes.insert(
-        "rust/src/api/ble.rs".into(),
-        include_str!("../templates/ble/ble.rs").into(),
-    );
-    manifest.modules.push("ble".into());
-    for path in [MAIN, API_MOD] {
-        manifest
-            .managed
-            .insert(path.into(), digest(changes[path].as_bytes()));
-    }
-    changes.insert(MANIFEST.into(), toml::to_string_pretty(&manifest)?);
-    apply_changes(project, &changes)?;
-    Ok(true)
+    Ok(PreparedChanges {
+        preview: ModulePreview {
+            modules,
+            added_modules: added.iter().map(|m| m.id.clone()).collect(),
+            changes: file_changes,
+        },
+        contents: changes,
+    })
 }
 
 pub fn sync(project: &Path) -> Result<()> {
@@ -387,14 +562,6 @@ fn safe_path(project: &Path, relative: &str) -> Result<PathBuf> {
 
 fn read(project: &Path, path: &str) -> Result<String> {
     fs::read_to_string(safe_path(project, path)?).with_context(|| format!("cannot read {path}"))
-}
-
-fn replace_once(source: &str, needle: &str, replacement: &str) -> Result<String> {
-    ensure!(
-        source.matches(needle).count() == 1,
-        "unexpected template structure for {needle:?}; no files changed"
-    );
-    Ok(source.replacen(needle, replacement, 1))
 }
 
 fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {

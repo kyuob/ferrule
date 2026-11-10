@@ -34,11 +34,12 @@ install `cargo-expand` if missing; install it explicitly first for predictable s
 
 ```sh
 # Add later, inside a Ferrule-generated app:
+ferrule add ble --dry-run
 ferrule add ble
 ferrule sync
 
 # Or opt in during creation:
-ferrule new sensor_app --ble
+ferrule new sensor_app --modules ble
 ferrule sync --project sensor_app
 ```
 
@@ -47,17 +48,36 @@ usage description, a foreground scanner and a Rust advertisement decoder.
 The module uses `flutter_reactive_ble` for native mobile transport, **not btleplug**.
 Connection, GATT reads/writes and notifications are not implemented in this MVP.
 See [module boundaries](docs/modules.md) and [verification status](docs/status.md).
+`--ble` remains a compatible shorthand for `--modules ble`. Module IDs may be
+comma-separated; only `core` and `ble` are available. `data`, `security` and `network`
+are listed as planned and are rejected before project creation or modification.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `ferrule new NAME [--directory PARENT] [--ble]` | Create a new managed app; parent must exist |
+| `ferrule new NAME [--directory PARENT] [--modules ble] [--ble]` | Create a new managed app; parent must exist |
 | `ferrule new NAME --dry-run` | Print JSON plan; no writes/toolchain required |
 | `ferrule add ble [--project PATH]` | Install the optional module; no dependency downloads |
+| `ferrule add ble --dry-run [--project PATH]` | Print JSON changed-file paths, actions, byte sizes and hashes; no writes or lock |
 | `ferrule sync [--project PATH]` | Fetch Flutter dependencies and regenerate bindings |
 | `ferrule doctor` | Check executables and exact bridge generator version |
-| `ferrule modules` | Show current modules and transport boundaries |
+| `ferrule modules [--json]` | Show embedded module contracts, versions and available/planned status |
+
+Built-in module manifests live in `modules/*.toml` and are embedded in the executable.
+Dependency resolution includes core automatically, orders prerequisites first, deduplicates
+requests and rejects cycles, conflicts, unsupported platforms and incompatible direct
+dependency policies. Cargo/pub still resolve and validate the full transitive package graph
+during sync/build; this resolver is not a replacement for either package manager.
+
+Module installation merges parsed Cargo TOML, pubspec YAML and platform XML/plist.
+Unrelated comments and values are preserved; existing conflicting dependencies/permissions
+are refused. A nonempty custom iOS Bluetooth purpose string is retained. YAML anchors,
+dependency aliases, merge keys and matching overrides require manual review. Dry-run reports metadata
+only, never the full contents of possibly sensitive project configuration. Apply recomputes
+the plan under its own lock; a dry-run is not authorization to overwrite later edits.
+Module versions are recorded in `ferrule.toml`; original schema-1 projects without this
+optional version table remain readable. Automatic upgrades and third-party plugins are not supported.
 
 Creation requires a new destination and stages generation beside it before moving.
 An interrupted final move may leave an incomplete destination; Ferrule never removes
@@ -91,6 +111,8 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 `ferrule new my_app`으로 만든 뒤 `ferrule sync --project my_app`을 실행하면
 새 API의 바인딩을 생성합니다. BLE가 필요하면 `ferrule add ble --project my_app`
 후 다시 sync합니다. 사용자 수정 파일을 임의로 덮어쓰지 않습니다.
+`ferrule new sensor_app --modules ble`로 처음부터 선택하거나,
+`ferrule add ble --dry-run --project my_app`으로 변경할 파일을 먼저 확인할 수 있습니다.
 
 현재는 초기 MVP이며, 모바일 빌드·실기기 확인과 패키지 배포는 별도 단계입니다.
 data·security·network, AI, 상태관리·아키텍처 프리셋은 아직 구현하지 않았습니다.

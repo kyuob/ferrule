@@ -51,3 +51,75 @@ fn unsupported_module_is_rejected() {
         .assert()
         .failure();
 }
+
+#[test]
+fn modules_selection_and_ble_alias_produce_identical_plans() {
+    let run = |args: &[&str]| {
+        let output = Command::new(env!("CARGO_BIN_EXE_ferrule"))
+            .args(args)
+            .env("PATH", "")
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        serde_json::from_slice::<serde_json::Value>(&output).unwrap()
+    };
+    let alias = run(&["new", "example", "--ble", "--dry-run"]);
+    assert_eq!(
+        alias,
+        run(&["new", "example", "--modules", "ble", "--dry-run"])
+    );
+    assert_eq!(
+        alias,
+        run(&[
+            "new",
+            "example",
+            "--modules",
+            "ble,core,ble",
+            "--ble",
+            "--dry-run"
+        ])
+    );
+}
+
+#[test]
+fn unavailable_modules_fail_without_creating_output() {
+    for module in ["data", "security", "network", "rtsp"] {
+        let dir = tempfile::tempdir().unwrap();
+        Command::new(env!("CARGO_BIN_EXE_ferrule"))
+            .args(["new", "example", "--modules", module, "--directory"])
+            .arg(dir.path())
+            .env("PATH", "")
+            .assert()
+            .failure();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+}
+
+#[test]
+fn module_catalog_marks_future_modules_as_planned() {
+    let output = Command::new(env!("CARGO_BIN_EXE_ferrule"))
+        .args(["modules", "--json"])
+        .env("PATH", "")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let modules: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    let data = modules
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == "data")
+        .unwrap();
+    assert_eq!(data["availability"], "planned");
+    assert!(
+        modules
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|m| m["id"] != "rtsp")
+    );
+}

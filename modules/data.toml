@@ -1,0 +1,8 @@
+schema = 1
+id = "data"
+version = "0.0.0"
+availability = "planned"
+description = "Planned Rust-owned local persistence; not installable"
+platforms = ["ios", "android"]
+requires = ["core"]
+conflicts = []
