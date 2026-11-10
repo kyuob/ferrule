@@ -1,7 +1,7 @@
 /// A small bridge smoke example. Put application rules in domain modules.
 #[flutter_rust_bridge::frb(sync)]
 pub fn add_values(left: i32, right: i32) -> i64 {
-    i64::from(left) + i64::from(right)
+    crate::usecase::arithmetic::add_values(left, right)
 }
 
 #[cfg(test)]

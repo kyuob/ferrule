@@ -18,6 +18,7 @@ const MANIFEST: &str = "ferrule.toml";
 #[cfg(test)]
 const MAIN: &str = "lib/main.dart";
 const API_MOD: &str = "rust/src/api/mod.rs";
+const MODULE_PAGES: &str = "lib/app/module_pages.dart";
 
 #[derive(Debug, Serialize)]
 pub struct Plan {
@@ -220,6 +221,20 @@ fn initialize(project: &Path, name: &str) -> Result<()> {
             catalog::template(&file.template)?.replace("APP_PACKAGE", name),
         );
     }
+    changes.insert(MODULE_PAGES.into(), render_pages(&[core])?);
+    if let Some(minimum) = &core.ios_minimum_version {
+        changes.insert(
+            "ios/Runner.xcodeproj/project.pbxproj".into(),
+            merge::xcode_minimum(
+                &read(project, "ios/Runner.xcodeproj/project.pbxproj")?,
+                minimum,
+            )?,
+        );
+        changes.insert(
+            "ios/Podfile".into(),
+            merge::podfile_minimum(&read(project, "ios/Podfile")?, minimum)?,
+        );
+    }
     let cargo = read(project, "rust/Cargo.toml")?;
     let merged = merge::cargo(&cargo, &core.cargo_dependencies)?;
     if merged != cargo {
@@ -273,7 +288,9 @@ fn load(project: &Path) -> Result<Manifest> {
     );
     for (id, version) in &manifest.module_versions {
         ensure!(
-            recorded.contains(id) && catalog.get(id)?.version == *version,
+            recorded.contains(id)
+                && (catalog.get(id)?.version == *version
+                    || catalog.get(id)?.compatible_versions.contains(version)),
             "unsupported recorded module version: {id}"
         );
     }
@@ -392,6 +409,33 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
     }
     if !added.is_empty() {
         ensure!(
+            manifest.managed.get("lib/main.dart")
+                == Some(&digest(read(project, "lib/main.dart")?.as_bytes())),
+            "lib/main.dart was edited; merge module UI manually"
+        );
+        let has_architecture = manifest.managed.contains_key(MODULE_PAGES)
+            && safe_path(project, MODULE_PAGES)?.is_file();
+        if has_architecture {
+            ensure!(
+                manifest.managed.get(MODULE_PAGES)
+                    == Some(&digest(read(project, MODULE_PAGES)?.as_bytes())),
+                "{MODULE_PAGES} was edited; merge module UI manually"
+            );
+            changes.insert(MODULE_PAGES.into(), render_pages(&resolved)?);
+            owned.insert(MODULE_PAGES.into());
+        } else {
+            ensure!(
+                added.iter().all(|m| m.id == "ble"),
+                "data requires the core 0.2 architecture scaffold; create a new app and merge your changes manually"
+            );
+            // Preserve the supported legacy core/BLE path without pretending to upgrade its core.
+            changes.insert(
+                "lib/main.dart".into(),
+                catalog::template("ble/main.dart")?.into(),
+            );
+            owned.insert("lib/main.dart".into());
+        }
+        ensure!(
             manifest.managed.get(API_MOD) == Some(&digest(read(project, API_MOD)?.as_bytes())),
             "{API_MOD} was edited; merge manually"
         );
@@ -411,6 +455,32 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
             }
         }
         for module in &added {
+            for (path, children) in &module.rust_registrations {
+                ensure!(
+                    !changes.contains_key(path),
+                    "module registration path collides with a template: {path}"
+                );
+                let source = read(project, path)?;
+                ensure!(
+                    manifest.managed.get(path) == Some(&digest(source.as_bytes())),
+                    "{path} was edited; merge module registration manually"
+                );
+                let mut source = source;
+                for child in children {
+                    ensure!(
+                        child.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                        "invalid Rust module identifier"
+                    );
+                    let statement = format!("pub mod {child};");
+                    ensure!(
+                        !source.contains(&statement),
+                        "Rust module already registered: {child}"
+                    );
+                    source.push_str(&format!("\n{statement}\n"));
+                }
+                changes.insert(path.clone(), source);
+                owned.insert(path.clone());
+            }
             for name in &module.api_modules {
                 ensure!(
                     name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
@@ -463,10 +533,21 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
                 .insert(path.clone(), digest(changes[&path].as_bytes()));
         }
         manifest.modules = modules.clone();
-        manifest.module_versions = resolved
-            .iter()
-            .map(|m| (m.id.clone(), m.version.clone()))
-            .collect();
+        for module in &resolved {
+            // Do not silently upgrade versions of already installed templates.
+            manifest
+                .module_versions
+                .entry(module.id.clone())
+                .or_insert_with(|| {
+                    if added.iter().any(|added| added.id == module.id) {
+                        module.version.clone()
+                    } else if module.id == "core" && !has_architecture {
+                        "0.1.0".into()
+                    } else {
+                        module.version.clone()
+                    }
+                });
+        }
         // Edit only Ferrule's owned record fields; preserve comments in older schema-1 files.
         let mut document: toml_edit::DocumentMut = read(project, MANIFEST)?.parse()?;
         let mut module_array = toml_edit::Array::new();
@@ -518,6 +599,40 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
         },
         contents: changes,
     })
+}
+
+fn render_pages(modules: &[&catalog::Module]) -> Result<String> {
+    let mut imports = String::new();
+    let mut pages = String::new();
+    for module in modules {
+        for page in &module.flutter_pages {
+            ensure!(
+                page.import
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || ['_', '/', '.'].contains(&c))
+                    && !page.import.contains(".."),
+                "invalid Flutter page import"
+            );
+            ensure!(
+                page.widget
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "invalid Flutter widget identifier"
+            );
+            imports.push_str(&format!("import '../{}';\n", page.import));
+            pages.push_str(&format!(
+                "  ModulePage(label: {}, child: const {}()),\n",
+                serde_json::to_string(&page.label)?,
+                page.widget
+            ));
+        }
+    }
+    if pages.is_empty() {
+        pages = "  ModulePage(label: 'Core', child: corePage()),".into();
+    }
+    Ok(catalog::template("core/module_pages.dart")?
+        .replace("// MODULE_IMPORTS", &imports)
+        .replace("// MODULE_PAGES", &pages))
 }
 
 pub fn sync(project: &Path) -> Result<()> {

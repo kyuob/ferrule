@@ -1,11 +1,13 @@
 schema = 1
 id = "core"
-version = "0.1.0"
+version = "0.2.0"
+compatible_versions = ["0.1.0"]
 availability = "available"
 description = "Flutter UI and Rust APIs through flutter_rust_bridge"
 platforms = ["ios", "android"]
 requires = []
 conflicts = []
+ios_minimum_version = "15.0"
 api_modules = ["core"]
 prerequisites = ["Flutter 3.41 / Dart 3.11 baseline", "flutter_rust_bridge_codegen 2.13.0", "platform SDKs for device builds"]
 checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml"]
@@ -16,6 +18,51 @@ version = "=2.13.0"
 [[files]]
 path = "lib/main.dart"
 template = "core/main.dart"
+mode = "owned"
+
+[[files]]
+path = "lib/app/module_pages.dart"
+template = "core/module_pages.dart"
+mode = "owned"
+
+[[files]]
+path = "rust/src/lib.rs"
+template = "core/lib.rs"
+mode = "owned"
+
+[[files]]
+path = "rust/src/domain/mod.rs"
+template = "core/domain_mod.rs"
+mode = "owned"
+
+[[files]]
+path = "rust/src/domain/error.rs"
+template = "core/error.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/ports/mod.rs"
+template = "core/ports_mod.rs"
+mode = "owned"
+
+[[files]]
+path = "rust/src/usecase/mod.rs"
+template = "core/usecase_mod.rs"
+mode = "owned"
+
+[[files]]
+path = "rust/src/usecase/arithmetic.rs"
+template = "core/arithmetic.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/infra/mod.rs"
+template = "core/infra_mod.rs"
+mode = "owned"
+
+[[files]]
+path = "rust/src/composition/mod.rs"
+template = "core/composition_mod.rs"
 mode = "owned"
 
 [[files]]

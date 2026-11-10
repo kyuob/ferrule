@@ -16,6 +16,8 @@ pub struct Module {
     pub schema: u32,
     pub id: String,
     pub version: String,
+    #[serde(default)]
+    pub compatible_versions: Vec<String>,
     pub availability: Availability,
     pub description: String,
     pub platforms: Vec<String>,
@@ -39,6 +41,20 @@ pub struct Module {
     pub android: Vec<AndroidEntry>,
     #[serde(default)]
     pub ios: Vec<IosEntry>,
+    #[serde(default)]
+    pub rust_registrations: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub flutter_pages: Vec<FlutterPage>,
+    #[serde(default)]
+    pub ios_minimum_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FlutterPage {
+    pub import: String,
+    pub label: String,
+    pub widget: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,6 +237,25 @@ pub(crate) fn template(id: &str) -> Result<&'static str> {
         "core/main.dart" => include_str!("../templates/core/main.dart"),
         "core/core.rs" => include_str!("../templates/core/core.rs"),
         "core/bridge_test.dart" => include_str!("../templates/core/bridge_test.dart"),
+        "core/module_pages.dart" => include_str!("../templates/core/module_pages.dart"),
+        "core/lib.rs" => include_str!("../templates/core/lib.rs"),
+        "core/domain_mod.rs" => include_str!("../templates/core/domain_mod.rs"),
+        "core/error.rs" => include_str!("../templates/core/error.rs"),
+        "core/ports_mod.rs" => include_str!("../templates/core/ports_mod.rs"),
+        "core/usecase_mod.rs" => include_str!("../templates/core/usecase_mod.rs"),
+        "core/arithmetic.rs" => include_str!("../templates/core/arithmetic.rs"),
+        "core/infra_mod.rs" => include_str!("../templates/core/infra_mod.rs"),
+        "core/composition_mod.rs" => include_str!("../templates/core/composition_mod.rs"),
+        "data/note.rs" => include_str!("../templates/data/note.rs"),
+        "data/note_store.rs" => include_str!("../templates/data/note_store.rs"),
+        "data/notes.rs" => include_str!("../templates/data/notes.rs"),
+        "data/sqlite.rs" => include_str!("../templates/data/sqlite.rs"),
+        "data/composition.rs" => include_str!("../templates/data/composition.rs"),
+        "data/api.rs" => include_str!("../templates/data/api.rs"),
+        "data/notes_repository.dart" => include_str!("../templates/data/notes_repository.dart"),
+        "data/notes_page.dart" => include_str!("../templates/data/notes_page.dart"),
+        "data/notes_page_test.dart" => include_str!("../templates/data/notes_page_test.dart"),
+        "data/data_bridge_test.dart" => include_str!("../templates/data/data_bridge_test.dart"),
         "ble/main.dart" => include_str!("../templates/ble/main.dart"),
         "ble/ble_page.dart" => include_str!("../templates/ble/ble_page.dart"),
         "ble/ble_transport.dart" => include_str!("../templates/ble/ble_transport.dart"),
@@ -282,7 +317,7 @@ mod tests {
     #[test]
     fn planned_and_excluded_modules_are_unavailable() {
         let c = Catalog::embedded().unwrap();
-        for id in ["data", "network", "security", "rtsp", "nvr"] {
+        for id in ["network", "security", "rtsp", "nvr"] {
             assert!(c.resolve(&[id.into()], &["ios", "android"]).is_err());
         }
     }

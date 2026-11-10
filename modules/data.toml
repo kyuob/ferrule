@@ -1,8 +1,80 @@
 schema = 1
 id = "data"
-version = "0.0.0"
-availability = "planned"
-description = "Planned Rust-owned local persistence; not installable"
+version = "0.1.0"
+availability = "available"
+description = "Rust-owned SQLite notes, versioned migrations and Flutter app-support paths"
 platforms = ["ios", "android"]
 requires = ["core"]
 conflicts = []
+api_modules = ["data"]
+prerequisites = ["Ferrule core architecture scaffold (core 0.2+)", "Flutter >=3.41 baseline", "C compiler for bundled SQLite"]
+checks = ["flutter analyze", "flutter test test/notes_page_test.dart", "cargo test --manifest-path rust/Cargo.toml", "host bridge persistence test", "iOS/Android device persistence checks (not yet verified)"]
+
+[cargo_dependencies.rusqlite]
+version = "=0.41.1"
+features = ["bundled"]
+
+[flutter_dependencies]
+path_provider = "2.1.6"
+
+[rust_registrations]
+"rust/src/domain/mod.rs" = ["note"]
+"rust/src/ports/mod.rs" = ["note_store"]
+"rust/src/usecase/mod.rs" = ["notes"]
+"rust/src/infra/mod.rs" = ["sqlite"]
+"rust/src/composition/mod.rs" = ["data"]
+
+[[flutter_pages]]
+import = "features/notes/notes_page.dart"
+label = "Notes"
+widget = "NotesPage"
+
+[[files]]
+path = "rust/src/domain/note.rs"
+template = "data/note.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/ports/note_store.rs"
+template = "data/note_store.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/usecase/notes.rs"
+template = "data/notes.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/infra/sqlite.rs"
+template = "data/sqlite.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/composition/data.rs"
+template = "data/composition.rs"
+mode = "create"
+
+[[files]]
+path = "rust/src/api/data.rs"
+template = "data/api.rs"
+mode = "create"
+
+[[files]]
+path = "lib/repositories/notes_repository.dart"
+template = "data/notes_repository.dart"
+mode = "create"
+
+[[files]]
+path = "lib/features/notes/notes_page.dart"
+template = "data/notes_page.dart"
+mode = "create"
+
+[[files]]
+path = "test/notes_page_test.dart"
+template = "data/notes_page_test.dart"
+mode = "create"
+
+[[files]]
+path = "test/data_bridge_test.dart"
+template = "data/data_bridge_test.dart"
+mode = "create"

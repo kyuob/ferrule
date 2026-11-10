@@ -8,8 +8,13 @@ apps; it must not become an unconditional dependency of the core builder templat
 - Official FRB generator owns Flutter platform scaffold, Rust linkage and generated bindings.
 - Ferrule owns `lib/main.dart`, `rust/src/api/core.rs` and module registration in `rust/src/api/mod.rs`.
 - `ferrule.toml` records schema, bridge version, selected module versions and owned-template hashes.
-- App UI is Dart/Flutter; exported API is Rust; substantive domain logic should be extracted
-  below the API layer as the app grows. This MVP does not impose a state management library.
+- Core 0.2 generates Rust `domain / ports / usecase / infra / composition / api` layers.
+  APIs call the composition facade; usecases depend on ports, and SQLite implements a port.
+  Flutter repositories wrap Rust sessions. No state management library is imposed.
+- Core owns `lib/app/module_pages.dart`; module page contributions compose into one app.
+  Rust registrations and page composition are protected by recorded hashes.
+- Fresh iOS scaffolds use a deployment floor of 15.0 in Runner and Pods. These narrow
+  fresh-template patches do not migrate existing projects when adding a module.
 - iOS/Android are the initial generated targets. Desktop/web presets are not exposed yet.
 
 ## BLE (optional)
@@ -41,6 +46,30 @@ For a customized app, generate a separate `sensor_app --ble`, then merge the dep
 permission, feature and Rust API changes through your own review. Run bridge generation,
 analysis and both platform builds afterward. Arbitrary existing Flutter apps are not supported.
 
+## Data (optional)
+
+`ferrule new notes_app --modules data` installs `rusqlite =0.41.1` with bundled SQLite
+and `path_provider 2.1.6`. The core alone includes neither dependency. Notes support
+list/create/edit/delete, with Unicode title/body validation in the Rust usecase.
+The Flutter repository supplies an existing absolute app-support directory; Rust owns
+`ferrule-notes.sqlite3`. Sessions serialize access and support explicit close/reopen.
+
+The database uses application ID `0x4652524c` and schema version 2. Atomic migrations
+create the notes table (v1), then add its modification timestamp (v2). Future versions,
+unrelated databases and a symlink database file are refused. Failed migrations roll back.
+The adapter is intended for the app's private storage, not arbitrary user database files.
+Storage is plaintext, with no encryption, synchronization or backup policy supplied.
+
+Fake-port tests cover usecases; SQLite tests cover migrations, rollback and reopen CRUD.
+Widget tests cover UI operations and error privacy; a real Dart/Rust bridge test reopens
+the same temporary database. `scripts/data-smoke.sh` also verifies data/BLE composition.
+Host bridge tests use `FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR` to locate the
+compiled native library; generated mobile apps use the normal FRB loader.
+
+Core 0.1 records remain readable and may still add BLE through the legacy entrypoint.
+Data requires the 0.2 architecture: generate a separate app and merge manually. Existing
+module versions are retained, not silently relabeled as upgraded.
+
 ## Adopted architecture direction
 
 The following separates implemented module infrastructure from future app capabilities.
@@ -49,9 +78,9 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 
 | Component | Responsibility | Current status |
 | --- | --- | --- |
-| core | Project creation, bridge/codegen, module composition, platform build configuration | Generator, embedded contracts, resolver and settings merge implemented; architecture/runtime presets planned |
+| core | Project creation, bridge/codegen, module composition, platform build configuration | Architecture skeleton, contracts, resolver, screen composition and settings merge implemented; runtime presets planned |
 | ble | Optional central BLE transport and Rust sensor protocol handling | Flutter transport + scanner implemented; GATT/device validation pending |
-| data | Rust-owned local persistence and migrations | Planned; no database adapter installed |
+| data | Rust-owned local persistence and migrations | SQLite notes adapter, migrations and Flutter repository/UI implemented |
 | security | Platform key storage plus Rust application encryption | Planned; no cryptographic service installed |
 | network | TLS HTTP initially; WebSocket/QUIC only when independently verified | Planned; no networking module installed |
 
@@ -100,7 +129,8 @@ The current implementation uses comment-preserving TOML/YAML edits and XML node-
 insertion after parsing and checking existing declarations. The XML/plist merger preserves every
 original byte outside insertions, including namespaces, comments and the plist DTD. Existing
 declarations are compared by namespace-qualified identity and policy; conflicting values are refused.
-Gradle patches and generalized nested plist value changes are not implemented.
+General Gradle patches and nested plist value changes are not implemented. The new-project
+iOS deployment floor is a separately guarded fresh-template patch, not a general Xcode merger.
 
 Hash/collision protections still guard owned Dart/Rust source templates. Plan all file changes
 before writing, retain recoverable originals and make repeat application idempotent. Future upgrades
@@ -124,7 +154,7 @@ again under the operation lock. Older schema-1 records without module versions r
 - **Security:** platform key storage needs its own initialization, accessibility/backup policy and
   device checks. A `data + security` payload-encryption option must not be advertised as whole-file
   database encryption: SQLite metadata, journals/WAL and backups need a separately tested backend.
-  Neither module is currently implemented; there is no encryption guarantee in the MVP.
+  Security is not implemented; the data module has no encryption guarantee.
 - **Network:** preserve TLS/certificate verification. Never add global ATS exceptions or Android
   cleartext allowances as the network default. Initialize the selected rustls provider centrally and
   check the combined feature graph. `aws-lc-rs` is a candidate pending mobile toolchain verification;
@@ -141,8 +171,8 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
 
 1. Implemented: embedded core/module catalog, dependency resolver, conflict/cycle tests,
    read-only add previews and structural dependency/platform patches. Existing commands remain compatible.
-2. Add the generated `domain / ports / usecase / infra / api` skeleton and a small data-only app.
-   Verify paths, migrations, restart persistence and iOS/Android builds before adding encryption.
+2. Implemented locally: architecture skeleton and a data-only notes app, paths, migrations,
+   reopen persistence and BLE screen composition. See status for mobile build evidence and blockers.
 3. Add security and an encrypted-notes example. Test data and security independently and together;
    prove key persistence, tamper rejection and real-device behavior before claiming support.
 4. Move the existing BLE module onto the same contract; add GATT and a sensor-logger example.
@@ -150,7 +180,7 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
 5. Add network with verified TLS defaults, then supported combination tests. Begin with HTTP;
    WebSocket and QUIC are separate increments, not automatic promises.
 
-Implemented syntax: `ferrule new app --modules ble`, `ferrule add ble --dry-run`, and `ferrule add ble`.
+Implemented syntax includes `ferrule new app --modules ble,data`, `ferrule add data --dry-run`, and `ferrule add ble`.
 `--ble` remains a shorthand. `ferrule new notes --modules data,security` is future syntax for planned
 modules and currently returns an unavailable-module error without creating a project.
 

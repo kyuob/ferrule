@@ -2,13 +2,19 @@
 
 ## Implemented locally
 
-- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE install, sync.
+- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE/data install, sync.
 - Core has no BLE dependency or permission.
 - Embedded versioned module contracts, deterministic dependency resolution and `--modules ble` selection.
 - Parsed Cargo/pubspec/platform settings merge and read-only `add --dry-run` file previews.
 - Planned modules are visible but not selectable; older schema-1 records remain readable.
 - Existing destinations, modified owned files, module path collisions and symlink paths are protected.
 - Three-OS offline CLI CI definition; triggered by the initial GitHub push.
+- Core 0.2 architecture: domain, ports, usecase, infra, composition and bridge API.
+- Core-owned screen composition supports BLE and data together, including either add order.
+- Optional data: bundled Rust SQLite notes CRUD, atomic schema migrations, reopen persistence,
+  Flutter path-provider repository, notes UI and explicit native-session cleanup.
+- Legacy core 0.1 records/BLE addition remain supported; data requires a new scaffold/manual merge.
+- Fresh-project iOS deployment floor 15.0 for Runner and Pods; existing apps are not repatched.
 
 ## Verification
 
@@ -20,13 +26,23 @@
   core create → sync → Flutter analyze → Rust tests → add BLE → sync → Flutter analyze → Rust tests → repeat add.
 - Extended module smoke also checks read-only add preview and a second app created directly
   with `--modules ble`, followed by sync, clean Dart analysis and Rust tests.
-- Core and BLE Dart analysis reported no issues; Rust example tests exercised safe integer
-  addition and BLE payload decoding. This is host compilation, not an iOS/Android build.
-- iOS/Android device builds and BLE discovery on hardware: not yet verified.
+- Architecture/data regression checks: 33 library + 6 CLI tests, rustfmt and Clippy passed.
+- Data smoke passed on the same SDK baseline: 7 generated data-app Rust tests and 9 combined
+  BLE/data Rust tests; two notes widget tests and one real Dart/Rust SQLite reopen/CRUD test.
+  Combined-app widget tests also passed; data-only and combined Dart analysis found no issues.
+- Combined BLE/data iOS simulator debug compilation passed on Xcode 27.2 / iOS SDK 27.2.
+  Platform smoke selects a concrete installed simulator to avoid the local universal-lipo
+  invocation incompatibility. It does not boot, install or launch the app.
+- A separately generated data-only Android app compiled successfully to a debug APK on
+  the installed Android SDK/NDK toolchain. No installation or on-device execution was performed.
+- Combined Android build is blocked: permission_handler_android 14.1.1 uses AGP 9/Kotlin
+  configuration incompatible with the Flutter scaffold's AGP 8.11.1. Android support is
+  not certified; pinning/upgrading that dependency graph needs a separate verified change.
+- Physical-device storage, lifecycle and BLE discovery/permissions: not yet verified.
 
 ## Remaining before a release
 
-1. Add iOS/Android platform build evidence (actual generated-app smoke is complete).
+1. Resolve the Android BLE permission-plugin/AGP compatibility blocker and compile supported combinations.
 2. Verify scan authorization, denial, powered-off, discovery and cancellation on iOS/Android devices.
 3. Improve customized-project module merges and recovery from interrupted writes.
 4. Add complete BLE connection/GATT/notification adapter if required by the first example app.
@@ -36,9 +52,9 @@
 
 The reviewed [module architecture](modules.md#adopted-architecture-direction) keeps the Rust
 Flutter project builder as the main product and excludes NVR/RTSP entirely. Planned optional
-modules are BLE, data, security and network; only the BLE scanner is implemented today.
+modules are BLE, data, security and network; the BLE scanner and local SQLite notes are implemented.
 
 Module contracts/dependency resolution and configuration merging are implemented. Next work is
-the architecture skeleton and data, security, BLE expansion, then network. These are development
+security, BLE expansion, then network, after the mobile compatibility gate above. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

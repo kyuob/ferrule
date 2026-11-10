@@ -15,10 +15,10 @@ flutter_reactive_ble = "5.5.0"
 permission_handler = "13.0.2"
 device_info_plus = "11.5.0"
 
-[[files]]
-path = "lib/main.dart"
-template = "ble/main.dart"
-mode = "owned"
+[[flutter_pages]]
+import = "features/ble/ble_page.dart"
+label = "Bluetooth"
+widget = "BlePage"
 
 [[files]]
 path = "lib/features/ble/ble_page.dart"

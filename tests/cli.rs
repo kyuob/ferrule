@@ -85,7 +85,7 @@ fn modules_selection_and_ble_alias_produce_identical_plans() {
 
 #[test]
 fn unavailable_modules_fail_without_creating_output() {
-    for module in ["data", "security", "network", "rtsp"] {
+    for module in ["security", "network", "rtsp"] {
         let dir = tempfile::tempdir().unwrap();
         Command::new(env!("CARGO_BIN_EXE_ferrule"))
             .args(["new", "example", "--modules", module, "--directory"])
@@ -112,7 +112,7 @@ fn module_catalog_marks_future_modules_as_planned() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|m| m["id"] == "data")
+        .find(|m| m["id"] == "security")
         .unwrap();
     assert_eq!(data["availability"], "planned");
     assert!(

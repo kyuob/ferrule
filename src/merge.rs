@@ -361,10 +361,102 @@ pub fn ios(source: &str, entries: &[IosEntry]) -> Result<String> {
     append_children(source, dict, &addition)
 }
 
+fn ios_version(value: &str) -> Result<Vec<u32>> {
+    ensure!(
+        !value.is_empty() && value.chars().all(|c| c.is_ascii_digit() || c == '.'),
+        "unsupported iOS version value"
+    );
+    value
+        .split('.')
+        .map(|part| part.parse().context("invalid iOS version"))
+        .collect()
+}
+
+/// Fresh upstream scaffolds only. Parse owned assignment lines, preserving all
+/// other project bytes. This is not a general-purpose existing PBX project editor.
+pub fn xcode_minimum(source: &str, minimum: &str) -> Result<String> {
+    let required = ios_version(minimum)?;
+    let mut found = 0;
+    let mut result = String::new();
+    for line in source.split_inclusive('\n') {
+        let Some((left, right)) = line.split_once('=') else {
+            result.push_str(line);
+            continue;
+        };
+        if left.trim() != "IPHONEOS_DEPLOYMENT_TARGET" {
+            result.push_str(line);
+            continue;
+        }
+        let (value, suffix) = right
+            .split_once(';')
+            .context("unexpected deployment-target assignment")?;
+        let current = ios_version(value.trim().trim_matches('"'))?;
+        found += 1;
+        if current < required {
+            result.push_str(&format!("{left}= {minimum};{suffix}"));
+        } else {
+            result.push_str(line);
+        }
+    }
+    ensure!(
+        found > 0,
+        "fresh Xcode scaffold has no recognized deployment-target assignments"
+    );
+    Ok(result)
+}
+
+/// A narrowly owned post_install block on a fresh Flutter Podfile. Existing apps
+/// are never passed through this initializer when a module is added.
+pub fn podfile_minimum(source: &str, minimum: &str) -> Result<String> {
+    ios_version(minimum)?;
+    ensure!(
+        !source.contains("# Ferrule deployment floor"),
+        "Podfile already contains a Ferrule deployment block"
+    );
+    let hook = "flutter_additional_ios_build_settings(target)";
+    let lines: Vec<_> = source.split_inclusive('\n').collect();
+    ensure!(
+        lines.iter().filter(|line| line.trim() == hook).count() == 1,
+        "unexpected Flutter Podfile post_install structure"
+    );
+    ensure!(
+        !lines
+            .iter()
+            .any(|line| line.trim_start().starts_with("platform :ios,")),
+        "unexpected active platform setting in fresh Flutter Podfile"
+    );
+    let mut output = format!("platform :ios, '{minimum}'\n{source}");
+    let original = lines
+        .iter()
+        .find(|line| line.trim() == hook)
+        .context("missing Podfile helper")?;
+    let replacement = format!(
+        "{original}    # Ferrule deployment floor\n    target.build_configurations.each do |config|\n      current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']\n      if current.nil? || !Gem::Version.correct?(current) || Gem::Version.new(current) < Gem::Version.new('{minimum}')\n        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '{minimum}'\n      end\n    end\n"
+    );
+    output = output.replacen(original, &replacement, 1);
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::catalog::Catalog;
+    #[test]
+    fn fresh_ios_floor_preserves_higher_values_and_unrelated_comments() {
+        let source = "// keep\n  IPHONEOS_DEPLOYMENT_TARGET = 13.0; // release\n  IPHONEOS_DEPLOYMENT_TARGET = 16.0;\n";
+        let result = xcode_minimum(source, "15.0").unwrap();
+        assert!(
+            result.contains("15.0; // release")
+                && result.contains("16.0;")
+                && result.starts_with("// keep")
+        );
+        assert_eq!(xcode_minimum(&result, "15.0").unwrap(), result);
+        let pod = "# comment\npost_install do |installer|\n  installer.pods_project.targets.each do |target|\n    flutter_additional_ios_build_settings(target)\n  end\nend\n";
+        let result = podfile_minimum(pod, "15.0").unwrap();
+        assert!(result.starts_with("platform :ios, '15.0'\n# comment"));
+        assert!(result.contains("Gem::Version.new(current) < Gem::Version.new('15.0')"));
+        assert!(podfile_minimum("custom Podfile", "15.0").is_err());
+    }
     #[test]
     fn yaml_preserves_comments_and_unrelated_values_and_is_repeatable() {
         let deps = Catalog::embedded()

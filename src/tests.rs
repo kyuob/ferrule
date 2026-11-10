@@ -6,6 +6,14 @@ fn fixture() -> tempfile::TempDir {
         (API_MOD, "pub mod simple;\n"),
         (MAIN, "// upstream main\n"),
         (
+            "ios/Runner.xcodeproj/project.pbxproj",
+            "{\n  IPHONEOS_DEPLOYMENT_TARGET = 13.0;\n}\n",
+        ),
+        (
+            "ios/Podfile",
+            "post_install do |installer|\n  installer.pods_project.targets.each do |target|\n    flutter_additional_ios_build_settings(target)\n  end\nend\n",
+        ),
+        (
             "rust/Cargo.toml",
             "[dependencies]\nflutter_rust_bridge = '=2.13.0'\n",
         ),
@@ -258,7 +266,96 @@ fn module_conflict_is_detected_before_any_file_changes() {
 #[test]
 fn planned_selection_is_rejected_before_lock_or_project_loading() {
     let empty = tempfile::tempdir().unwrap();
-    let error = add_modules(empty.path(), &["data".into()]).unwrap_err();
+    let error = add_modules(empty.path(), &["security".into()]).unwrap_err();
     assert!(error.to_string().contains("planned"));
     assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn data_registers_architecture_without_overwriting_the_entrypoint() {
+    let project = fixture();
+    let main = read(project.path(), MAIN).unwrap();
+    let preview = preview_add(project.path(), &["data".into(), "ble".into()]).unwrap();
+    assert_eq!(preview.modules, ["core", "ble", "data"]);
+    assert!(!preview.changes.iter().any(|change| change.path == MAIN));
+    add_modules(project.path(), &["data".into(), "ble".into()]).unwrap();
+    assert_eq!(read(project.path(), MAIN).unwrap(), main);
+    let pages = read(project.path(), MODULE_PAGES).unwrap();
+    assert!(pages.contains("NotesPage") && pages.contains("BlePage"));
+    assert!(
+        read(project.path(), "rust/src/ports/mod.rs")
+            .unwrap()
+            .contains("pub mod note_store;")
+    );
+    assert!(
+        read(project.path(), "rust/Cargo.toml")
+            .unwrap()
+            .contains("rusqlite")
+    );
+    assert!(
+        preview_add(project.path(), &["data".into(), "ble".into()])
+            .unwrap()
+            .changes
+            .is_empty()
+    );
+}
+
+#[test]
+fn adding_data_and_ble_in_either_order_composes_the_same_screens() {
+    let first = fixture();
+    let second = fixture();
+    add_modules(first.path(), &["data".into()]).unwrap();
+    add_ble(first.path()).unwrap();
+    add_ble(second.path()).unwrap();
+    add_modules(second.path(), &["data".into()]).unwrap();
+    assert_eq!(
+        read(first.path(), MODULE_PAGES).unwrap(),
+        read(second.path(), MODULE_PAGES).unwrap()
+    );
+    for path in ["rust/src/ports/mod.rs", "rust/src/domain/mod.rs"] {
+        assert_eq!(
+            read(first.path(), path).unwrap(),
+            read(second.path(), path).unwrap()
+        );
+    }
+}
+
+#[test]
+fn custom_module_registration_is_preserved_and_blocks_data_installation() {
+    let project = fixture();
+    let path = "rust/src/ports/mod.rs";
+    fs::write(project.path().join(path), "// custom user port\n").unwrap();
+    let before = read(project.path(), MANIFEST).unwrap();
+    assert!(add_modules(project.path(), &["data".into()]).is_err());
+    assert_eq!(read(project.path(), path).unwrap(), "// custom user port\n");
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), before);
+    assert!(!project.path().join("rust/src/infra/sqlite.rs").exists());
+}
+
+#[test]
+fn legacy_core_can_add_ble_but_data_requires_a_new_scaffold() {
+    let project = fixture();
+    let mut manifest = load(project.path()).unwrap();
+    manifest.managed.remove(MODULE_PAGES);
+    manifest
+        .module_versions
+        .insert("core".into(), "0.1.0".into());
+    fs::remove_file(project.path().join(MODULE_PAGES)).unwrap();
+    fs::write(
+        project.path().join(MANIFEST),
+        toml::to_string_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+    let error = add_modules(project.path(), &["data".into()]).unwrap_err();
+    assert!(error.to_string().contains("architecture scaffold"));
+    assert!(!project.path().join("rust/src/infra/sqlite.rs").exists());
+    add_ble(project.path()).unwrap();
+    assert_eq!(
+        load(project.path())
+            .unwrap()
+            .module_versions
+            .get("core")
+            .unwrap(),
+        "0.1.0"
+    );
 }
