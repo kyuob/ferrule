@@ -1,5 +1,7 @@
 # Ferrule
 
+[English](README.md) | [한국어](README.ko.md)
+
 A Rust CLI that creates Flutter + Rust apps and installs optional app modules.
 
 Ferrule is a **project builder**. Bluetooth is an optional module, not a requirement
@@ -176,6 +178,8 @@ Local scripts use an isolated `.tools` Rust toolchain if present, otherwise the
 normal system Rust installation. `.tools` is ignored and is not distributed.
 
 ## 한국어
+
+프로젝트 소개부터 설치·모듈 사용·복구까지 정리한 [전체 한국어 README](README.ko.md)를 읽을 수 있습니다.
 
 Ferrule은 **Rust로 만든 Flutter 프로젝트 빌더**입니다. 기본 프로젝트는
 Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에만 추가합니다.
