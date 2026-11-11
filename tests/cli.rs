@@ -1,6 +1,19 @@
 use assert_cmd::Command;
 
 #[test]
+fn recover_preview_is_toolchain_free_and_write_free() {
+    let dir = tempfile::tempdir().unwrap();
+    Command::new(env!("CARGO_BIN_EXE_ferrule"))
+        .args(["recover", "--project"])
+        .arg(dir.path())
+        .arg("--dry-run")
+        .env("PATH", "")
+        .assert()
+        .success();
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+}
+
+#[test]
 fn dry_run_needs_no_toolchain_and_writes_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_ferrule"))

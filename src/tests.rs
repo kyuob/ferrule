@@ -172,6 +172,210 @@ fn unknown_schema_and_modules_fail_closed() {
 }
 
 #[test]
+fn interrupted_module_add_can_be_previewed_and_rolled_back() {
+    let project = fixture();
+    let before = read(project.path(), MANIFEST).unwrap();
+    let prepared = prepare_add(project.path(), &["ble".into()]).unwrap();
+    recovery::snapshot(project.path(), &prepared.contents).unwrap();
+    // Simulate a killed writer, including a replaced ownership record.
+    for (path, value) in &prepared.contents {
+        atomic_write(&safe_path(project.path(), path).unwrap(), value.as_bytes()).unwrap();
+    }
+    assert!(preview_add(project.path(), &["data".into()]).is_err());
+    assert!(sync(project.path()).is_err()); // blocked before external tools
+    let preview = recover(project.path(), true).unwrap();
+    assert!(preview.contains(&MANIFEST.to_string()));
+    assert!(project.path().join(recovery::JOURNAL).is_file());
+    assert_eq!(recover(project.path(), false).unwrap(), preview);
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), before);
+    assert!(!project.path().join("rust/src/api/ble.rs").exists());
+    assert!(!project.path().join(recovery::JOURNAL).exists());
+    assert!(recover(project.path(), false).unwrap().is_empty());
+    add_ble(project.path()).unwrap();
+    assert!(!project.path().join(recovery::JOURNAL).exists());
+}
+
+#[test]
+fn interrupted_partial_write_and_ordinary_error_restore_originals() {
+    let project = fixture();
+    let original = read(project.path(), MAIN).unwrap();
+    let changes = BTreeMap::from([
+        (MAIN.into(), "new main".into()),
+        ("rust/src/api/ble.rs".into(), "new ble".into()),
+    ]);
+    recovery::snapshot(project.path(), &changes).unwrap();
+    atomic_write(&project.path().join(MAIN), b"new main").unwrap();
+    assert_eq!(
+        recover(project.path(), false).unwrap(),
+        vec![MAIN.to_string()]
+    );
+    assert_eq!(read(project.path(), MAIN).unwrap(), original);
+    let mut writes = 0;
+    let result = apply_changes_with_writer(project.path(), &changes, |path, value| {
+        writes += 1;
+        if writes == 2 {
+            bail!("injected disk write failure");
+        }
+        atomic_write(path, value)
+    });
+    assert!(result.unwrap_err().to_string().contains("restored"));
+    assert_eq!(writes, 2);
+    assert_eq!(read(project.path(), MAIN).unwrap(), original);
+    assert!(!project.path().join("rust/src/api/ble.rs").exists());
+    assert!(!project.path().join(recovery::JOURNAL).exists());
+}
+
+#[test]
+fn recovery_rejects_aliases_duplicate_keys_and_invalid_hashes() {
+    let project = fixture();
+    let original = read(project.path(), MAIN).unwrap();
+    let entry =
+        serde_json::json!({"before":null,"after_sha256":digest(original.as_bytes())}).to_string();
+    let journal = project.path().join(recovery::JOURNAL);
+    let held = lock(project.path()).unwrap();
+    for alias in [
+        ".ferrule.lock/",
+        ".ferrule.lock/.",
+        ".FERRULE.LOCK",
+        "lib//main.dart",
+        "lib/main.dart/.",
+        "lib\\main.dart",
+        "Lib/main.dart",
+        ".git/config",
+    ] {
+        let mut payload = serde_json::json!({"schema":1,"files":{MAIN:{"before":null,"after_sha256":digest(original.as_bytes())}}});
+        payload["files"][alias] = serde_json::json!({"before":null,"after_sha256":digest(b"")});
+        fs::write(&journal, payload.to_string()).unwrap();
+        assert!(
+            recovery::rollback(project.path(), false).is_err(),
+            "accepted {alias}"
+        );
+        assert!(project.path().join(".ferrule.lock").exists());
+        assert_eq!(read(project.path(), MAIN).unwrap(), original);
+    }
+    drop(held);
+    let duplicate =
+        format!(r#"{{"schema":1,"files":{{"lib/main.dart":{entry},"lib/main.dart":{entry}}}}}"#);
+    fs::write(&journal, duplicate).unwrap();
+    assert!(
+        recover(project.path(), false)
+            .unwrap_err()
+            .to_string()
+            .contains("invalid recovery journal")
+    );
+    let invalid_hash = serde_json::json!({"schema":1,"files":{MAIN:{"before":original.as_bytes(),"after_sha256":"bad"}}});
+    fs::write(&journal, invalid_hash.to_string()).unwrap();
+    assert!(recover(project.path(), false).is_err());
+    assert_eq!(read(project.path(), MAIN).unwrap(), original);
+}
+
+#[test]
+fn interrupted_rollback_can_resume_and_keeps_untouched_files() {
+    let project = fixture();
+    let original = read(project.path(), MAIN).unwrap();
+    let cargo = read(project.path(), "rust/Cargo.toml").unwrap();
+    let changes = BTreeMap::from([
+        (MAIN.into(), "new main".into()),
+        ("rust/Cargo.toml".into(), "new cargo".into()),
+        ("rust/src/api/ble.rs".into(), "new ble".into()),
+    ]);
+    recovery::snapshot(project.path(), &changes).unwrap();
+    for (key, value) in &changes {
+        atomic_write(&project.path().join(key), value.as_bytes()).unwrap();
+    }
+    // A first recovery restored this file before being interrupted.
+    atomic_write(&project.path().join(MAIN), original.as_bytes()).unwrap();
+    let pending = recover(project.path(), true).unwrap();
+    assert_eq!(pending.len(), 2);
+    assert!(!pending.contains(&MAIN.to_string()));
+    recover(project.path(), false).unwrap();
+    assert_eq!(read(project.path(), MAIN).unwrap(), original);
+    assert_eq!(read(project.path(), "rust/Cargo.toml").unwrap(), cargo);
+    assert!(!project.path().join("rust/src/api/ble.rs").exists());
+}
+
+#[test]
+fn recovery_conflict_checks_every_file_before_writing() {
+    let project = fixture();
+    let changes = BTreeMap::from([
+        (MAIN.into(), "new main".into()),
+        ("rust/src/api/ble.rs".into(), "new ble".into()),
+    ]);
+    recovery::snapshot(project.path(), &changes).unwrap();
+    atomic_write(&project.path().join(MAIN), b"new main").unwrap();
+    atomic_write(&project.path().join("rust/src/api/ble.rs"), b"user edit").unwrap();
+    assert!(
+        recover(project.path(), false)
+            .unwrap_err()
+            .to_string()
+            .contains("conflict")
+    );
+    assert_eq!(read(project.path(), MAIN).unwrap(), "new main");
+    assert_eq!(
+        read(project.path(), "rust/src/api/ble.rs").unwrap(),
+        "user edit"
+    );
+    assert!(project.path().join(recovery::JOURNAL).is_file());
+    // Manual conflict resolution permits retry; already-restored files are harmless.
+    fs::remove_file(project.path().join("rust/src/api/ble.rs")).unwrap();
+    assert_eq!(
+        recover(project.path(), false).unwrap(),
+        vec![MAIN.to_string()]
+    );
+}
+
+#[test]
+fn recovery_refuses_stale_lock_and_malformed_journals() {
+    let project = fixture();
+    let changes = BTreeMap::from([(MAIN.into(), "changed".into())]);
+    recovery::snapshot(project.path(), &changes).unwrap();
+    let held = lock(project.path()).unwrap();
+    assert!(recover(project.path(), false).is_err());
+    assert!(recover(project.path(), true).unwrap().is_empty());
+    assert!(project.path().join(".ferrule.lock").exists());
+    drop(held);
+    let journal = project.path().join(recovery::JOURNAL);
+    for key in [
+        "../escape",
+        "/absolute",
+        ".ferrule.lock",
+        ".ferrule-transaction.json",
+        "",
+    ] {
+        let payload =
+            serde_json::json!({"schema":1,"files":{key:{"before":null,"after_sha256":"bad"}}});
+        fs::write(&journal, payload.to_string()).unwrap();
+        assert!(recover(project.path(), false).is_err(), "accepted {key}");
+        assert!(journal.exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn recovery_rejects_symlinked_targets_and_journal() {
+    let project = fixture();
+    let outside = tempfile::tempdir().unwrap();
+    let changes = BTreeMap::from([("lib/features/ble/ble_page.dart".into(), "changed".into())]);
+    recovery::snapshot(project.path(), &changes).unwrap();
+    fs::create_dir_all(project.path().join("lib/features")).unwrap();
+    std::os::unix::fs::symlink(outside.path(), project.path().join("lib/features/ble")).unwrap();
+    assert!(recover(project.path(), false).is_err());
+    assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+    fs::remove_file(project.path().join(recovery::JOURNAL)).unwrap();
+    fs::write(outside.path().join("journal"), b"private").unwrap();
+    std::os::unix::fs::symlink(
+        outside.path().join("journal"),
+        project.path().join(recovery::JOURNAL),
+    )
+    .unwrap();
+    assert!(recover(project.path(), false).is_err());
+    assert_eq!(
+        fs::read(outside.path().join("journal")).unwrap(),
+        b"private"
+    );
+}
+
+#[test]
 fn failed_preflight_preserves_previous_files() {
     let project = fixture();
     let before = read(project.path(), MAIN).unwrap();

@@ -15,6 +15,8 @@
   Flutter path-provider repository, notes UI and explicit native-session cleanup.
 - Legacy core 0.1 records/BLE addition remain supported; data requires a new scaffold/manual merge.
 - Fresh-project iOS deployment floor 15.0 for Runner and Pods; existing apps are not repatched.
+- Durable managed-file rollback journal and explicit `recover --dry-run` / `recover`.
+  Pending transactions block add/sync; recovery refuses changed files and unsafe paths.
 
 ## Verification
 
@@ -44,11 +46,15 @@
   Legacy BLE version acceptance and write-free repeated add are covered. Independent
   read-only review found no blocking issue in the dependency/version compatibility change.
 - Physical-device storage, lifecycle and BLE discovery/permissions: not yet verified.
+- Recovery increment: 41 library + 7 CLI tests, rustfmt and Clippy passed. Tests cover
+  partial writes, ordinary late-write failure, rollback retries, user edits, stale
+  locks, malformed/duplicate records and path aliases/symlinks. Independent read-only
+  review found no remaining blocker after the path-alias issue was corrected.
 
 ## Remaining before a release
 
 1. Verify scan authorization, denial, powered-off, discovery and cancellation on iOS/Android devices.
-2. Improve customized-project module merges and recovery from interrupted writes.
+2. Improve customized-project module merges and recovery from interrupted project-creation moves.
 3. Add complete BLE connection/GATT/notification adapter if required by the first example app.
 4. Package registry name availability, release packaging and expanded installation docs.
 

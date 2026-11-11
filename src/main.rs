@@ -46,6 +46,13 @@ enum Commands {
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
+    /// Roll back interrupted managed-file writes; never removes stale locks.
+    Recover {
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Check Flutter, Rust and the pinned bridge generator.
     Doctor,
     /// List supported modules and their transport boundaries.
@@ -109,6 +116,10 @@ fn run() -> Result<()> {
             }
         }
         Commands::Sync { project } => ferrule::sync(&project)?,
+        Commands::Recover { project, dry_run } => {
+            let files = ferrule::recover(&project, dry_run)?;
+            println!("{}", serde_json::to_string_pretty(&files)?);
+        }
         Commands::Doctor => doctor()?,
         Commands::Modules { json } => {
             let catalog = ferrule::catalog::Catalog::embedded()?;

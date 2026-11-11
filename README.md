@@ -81,6 +81,7 @@ migration. Ferrule does not silently upgrade or rewrite an older app.
 | `ferrule add MODULE [--project PATH]` | Install an available optional module; no dependency downloads |
 | `ferrule add ble --dry-run [--project PATH]` | Print JSON changed-file paths, actions, byte sizes and hashes; no writes or lock |
 | `ferrule sync [--project PATH]` | Fetch Flutter dependencies and regenerate bindings |
+| `ferrule recover [--project PATH] [--dry-run]` | Inspect or roll back interrupted managed-file writes |
 | `ferrule doctor` | Check executables and exact bridge generator version |
 | `ferrule modules [--json]` | Show embedded module contracts, versions and available/planned status |
 
@@ -104,9 +105,13 @@ An interrupted final move may leave an incomplete destination; Ferrule never rem
 an existing destination to retry. `add ble` refuses modified owned templates or
 unexpected platform layouts. It validates the complete edit set before writing and
 restores previous file contents on ordinary write failures. Process termination or
-power failure is not an atomic multi-file transaction. Do not run competing editors
-while adding modules. `.ferrule.lock` prevents overlapping Ferrule operations;
-after a crash, inspect the project before manually removing a stale lock.
+an interrupted rollback can be recovered using the local transaction journal:
+`ferrule recover --dry-run --project my_app`, then `ferrule recover --project my_app`.
+Recovery validates every target before writing and refuses subsequent user edits.
+Keep editors and competing operations stopped during addition/recovery. `.ferrule.lock`
+prevents overlapping Ferrule operations; stale locks require manual review.
+This is process-interruption recovery, not power-loss atomicity or project-creation
+move recovery. See [recovery steps and limits](docs/recovery.md).
 
 ## Development
 

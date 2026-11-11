@@ -11,7 +11,9 @@ use std::{
 
 pub mod catalog;
 mod merge;
+mod recovery;
 use catalog::{Catalog, FileMode};
+pub use recovery::recover;
 
 pub const BRIDGE_VERSION: &str = "2.13.0";
 const MANIFEST: &str = "ferrule.toml";
@@ -360,6 +362,7 @@ pub fn add_modules(project: &Path, requested: &[String]) -> Result<ModulePreview
 }
 
 fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> {
+    recovery::ensure_clear(project)?;
     let catalog = Catalog::embedded()?;
     catalog.resolve(requested, &["ios", "android"])?;
     ensure!(
@@ -637,6 +640,7 @@ fn render_pages(modules: &[&catalog::Module]) -> Result<String> {
 
 pub fn sync(project: &Path) -> Result<()> {
     let _lock = lock(project)?;
+    recovery::ensure_clear(project)?;
     load(project)?;
     require_generator()?;
     run("flutter", &["pub", "get"], project)?;
@@ -690,43 +694,31 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<()> {
 }
 
 fn apply_changes(project: &Path, changes: &BTreeMap<String, String>) -> Result<()> {
-    let mut originals = BTreeMap::new();
-    for key in changes.keys() {
-        let path = safe_path(project, key)?;
-        let bytes = match fs::read(&path) {
-            Ok(value) => Some(value),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error).context("could not snapshot project file"),
-        };
-        originals.insert(key, bytes);
+    apply_changes_with_writer(project, changes, atomic_write)
+}
+
+fn apply_changes_with_writer(
+    project: &Path,
+    changes: &BTreeMap<String, String>,
+    mut write: impl FnMut(&Path, &[u8]) -> Result<()>,
+) -> Result<()> {
+    recovery::ensure_clear(project)?;
+    if changes.is_empty() {
+        return Ok(());
     }
-    let mut written: Vec<&String> = Vec::new();
+    recovery::snapshot(project, changes)?;
     let mut ordered: Vec<_> = changes.iter().collect();
     ordered.sort_by_key(|(key, _)| key.as_str() == MANIFEST);
     for (key, contents) in ordered {
-        if let Err(error) = atomic_write(&safe_path(project, key)?, contents.as_bytes()) {
-            let mut rollback_errors = Vec::new();
-            for key in written.into_iter().rev() {
-                let path = project.join(key);
-                let result = match &originals[key] {
-                    Some(bytes) => atomic_write(&path, bytes),
-                    None => fs::remove_file(&path).map_err(Into::into),
-                };
-                if let Err(e) = result {
-                    rollback_errors.push(format!("{key}: {e}"));
-                }
-            }
-            if !rollback_errors.is_empty() {
-                bail!(
-                    "write failed: {error}; rollback needs review: {}",
-                    rollback_errors.join(", ")
-                );
+        let result = safe_path(project, key).and_then(|path| write(&path, contents.as_bytes()));
+        if let Err(error) = result {
+            if let Err(rollback) = recovery::rollback(project, false) {
+                bail!("write failed: {error}; recovery needs review: {rollback:#}");
             }
             return Err(error).context("write failed; previous file contents restored");
         }
-        written.push(key);
     }
-    Ok(())
+    recovery::clear(project)
 }
 
 #[cfg(test)]
