@@ -54,7 +54,9 @@ insecure URLs and the untrusted fixture. Fake-fetcher widgets check single-fligh
 The smoke first generates a network-only app and then checks the four optional modules together.
 An optional absolute project argument adds network to an existing **disposable** BLE/data/security
 fixture to reuse native build caches. Mobile compilation is separate from host transport checks.
-Physical-device networking, captive portals, app suspension and network handover remain unverified.
+The automated checks do not exercise physical-device networking, captive portals, app suspension
+or handover. On 2026-11-11 the owner reported device verification complete; individual scenario
+results were not supplied and are not independently certified by these tests.
 No production endpoint or device is contacted by these tests.
 
 Reference: [reqwest blocking client](https://docs.rs/reqwest/0.12.28/reqwest/blocking/struct.ClientBuilder.html)

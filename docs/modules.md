@@ -91,10 +91,10 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 | Component | Responsibility | Current status |
 | --- | --- | --- |
 | core | Project creation, bridge/codegen, module composition, platform build configuration | Architecture skeleton, contracts, resolver, screen composition and settings merge implemented; runtime presets planned |
-| ble | Optional central BLE transport and Rust sensor protocol handling | Foreground scanner + GATT inspector implemented; hardware/protocol validation pending |
+| ble | Optional central BLE transport and Rust sensor protocol handling | Scanner/GATT implemented; owner reports device checks complete; protocols remain app-specific |
 | data | Rust-owned local persistence and migrations | SQLite notes adapter, migrations and Flutter repository/UI implemented |
-| security | Platform key storage plus Rust application encryption | Experimental private-note payload encryption; device key lifecycle validation pending |
-| network | Rust-owned bounded HTTPS GET; WebSocket/QUIC outside the current scope | HTTPS reader, verified TLS and local transport/bridge checks; device networking pending |
+| security | Platform key storage plus Rust application encryption | Experimental payload encryption; owner reports device checks complete |
+| network | Rust-owned bounded HTTPS GET; WebSocket/QUIC outside the current scope | Verified TLS/host checks; owner reports device checks complete |
 
 ### Module contract
 

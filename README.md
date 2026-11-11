@@ -5,8 +5,12 @@ A Rust CLI that creates Flutter + Rust apps and installs optional app modules.
 Ferrule is a **project builder**. Bluetooth is an optional module, not a requirement
 of generated apps. The initial supported application targets are iOS and Android.
 This is an early MVP with source at [kyuob/ferrule](https://github.com/kyuob/ferrule).
-No packaged release is available; the name has not been reserved on package registries.
+Native archive/checksum packaging is prepared; no public packaged release is available yet.
+The name has not been reserved on package registries.
 The verified SDK baseline is Flutter 3.41.2 / Dart 3.11.0; BLE requires Flutter >=3.41.
+
+See [installation](docs/installation.md), [FAQ](docs/faq.md),
+[release preparation](docs/releases.md) and [changelog](CHANGELOG.md).
 
 ## Quick start
 
@@ -47,8 +51,9 @@ The BLE module adds Flutter dependencies, Android permissions, the iOS Bluetooth
 usage description, a foreground scanner and instance-aware GATT inspection.
 The module uses `flutter_reactive_ble` for native mobile transport, **not btleplug**.
 BLE 0.2 adds connect/disconnect, characteristic reads/writes and live updates,
-with bounded waits, cancellation and Rust byte formatting. Physical-device behavior
-is still unverified. See [BLE scope and migration](docs/ble.md).
+with bounded waits, cancellation and Rust byte formatting. The owner reported device
+verification complete on 2026-11-11; device/scenario details are not recorded.
+See [BLE scope and migration](docs/ble.md) and [verification status](docs/status.md).
 See [module boundaries](docs/modules.md) and [verification status](docs/status.md).
 `--ble` remains a compatible shorthand for `--modules ble`. Module IDs may be
 comma-separated; `core`, `ble`, `data`, experimental `security` and `network` are available.
@@ -155,12 +160,17 @@ sh scripts/gatt-smoke.sh # BLE-only and combined GATT/session/widget checks with
 sh scripts/security-smoke.sh # security-only and combined real Rust bridge tests; fake platform keys
 sh scripts/security-mobile-smoke.sh PATH_TO_SYNCED_APP # both mobile builds and backup/entitlement checks
 sh scripts/platform-smoke.sh PATH_TO_SYNCED_APP both # compile only; needs both SDKs
+sh scripts/creation-smoke.sh # actual staged creation and destination collision checks
+sh scripts/network-smoke.sh # local TLS transport, bridge and module composition
+sh scripts/release-smoke.sh # native archive, checksums, isolated install/run/remove
+python3 -m unittest discover -s tests -p test_release.py # archive safety tests
 sh scripts/ferrule.sh doctor # run directly from this checkout without a global install
 ```
 
 CLI tests are offline after Cargo dependencies are cached. The optional smoke test
 creates artifacts below `.work/` and checks actual Flutter/Rust code generation.
-CI runs a three-OS CLI matrix on push and pull requests.
+CI runs a three-OS CLI and native-package matrix on push and pull requests.
+Workflow artifacts do not automatically become a public GitHub Release.
 Local scripts use an isolated `.tools` Rust toolchain if present, otherwise the
 normal system Rust installation. `.tools` is ignored and is not distributed.
 
@@ -178,8 +188,10 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 
 `--modules data`로 SQLite 메모 앱을 만들고 `--modules ble,data`로 함께 선택할 수 있습니다.
 `--modules security`는 별도의 암호화 비공개 메모 예제를 추가합니다. 기존 SQLite
-메모는 평문으로 유지되며, 키 유지·잠금·백업 복원은 실기기 검증이 필요합니다.
-현재는 초기 MVP이며, 실기기 확인과 패키지 배포는 별도 단계입니다.
+메모는 평문으로 유지됩니다. 사용자가 2026-11-11 실기기 검증 완료를 확인했으며,
+검증 기기와 세부 시나리오는 아직 문서화되지 않았습니다.
+현재는 초기 MVP이며, 실행 파일 패키지 준비와 공개 배포는 별도 단계입니다.
+설치 방법과 자주 묻는 질문은 위 가이드 링크에서 확인할 수 있습니다.
 `--modules network`는 Rust HTTPS GET 예제를 추가합니다. 동기화, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
 확장 방향은 [모듈 설계](docs/modules.md#adopted-architecture-direction)에 정리했습니다.
 NVR·RTSP는 프로젝트 범위에서 제외합니다.

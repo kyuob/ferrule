@@ -55,6 +55,9 @@ debug Android backup attribute and iOS signing configuration, and never installs
 or launches an app. Production requires device checks for save/relaunch, locked
 storage, reinstall, lost keys, denial/errors and supported backup/transfer behavior.
 
+On 2026-11-11 the owner reported device verification complete. Detailed device/scenario
+results were not supplied; this user report is distinct from the automated evidence above.
+
 The secure-storage pin also preserves the existing BLE Dart dependency graph:
 11.2.0 requires a Windows plugin with win32 6, while the BLE device-info baseline
 requires win32 5. Version 10.3.4 resolves a compatible plugin without overrides.

@@ -75,4 +75,7 @@ They do not certify permissions, radio discovery, out-of-range cancellation,
 read/write/notify semantics, device disconnects or firmware-specific behavior.
 Those require an actual authorized peripheral and phone test matrix.
 
+On 2026-11-11 the owner reported device verification complete. No device/OS/firmware
+matrix was supplied; the automated checks above do not independently reproduce that result.
+
 Reference: [pinned Flutter reactive BLE documentation](https://pub.dev/packages/flutter_reactive_ble/versions/5.5.0).

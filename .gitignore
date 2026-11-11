@@ -1,4 +1,6 @@
 /target/
 /.tools/
 /.work/
+/dist/
+__pycache__/
 .DS_Store

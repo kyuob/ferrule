@@ -30,8 +30,21 @@
 - New-project installation moves the complete staged directory with atomic no-replace
   rename, preserving competing destinations and failing closed on unsupported filesystems.
   Hidden staging leftovers and incomplete destinations from older versions need manual review.
+- Native CLI archive/checksum packaging, strict archive validation and isolated install/run/removal.
+  Installation/FAQ/release guides and changelog are included. Three-OS CI builds/checks/uploads
+  workflow artifacts; no tag, registry publication or public Release is automatic.
 
-## Verification
+## User-reported device verification
+
+On 2026-11-11, the owner confirmed that physical-device verification was completed and
+requested moving on to release preparation. This is accepted as user-reported completion;
+it was not independently reproduced by this agent. Device/OS/firmware names and individual
+scenario results were not supplied, so no additional matrix or test evidence is invented.
+
+## Automated verification history
+
+The following records describe each automated run's scope. Their statements that a run
+did not use a device are historical boundaries, not a reversal of the owner's later report.
 
 - Bootstrap offline run: 11 library tests + 3 CLI tests passed on macOS ARM64; rustfmt and Clippy passed.
 - Module foundation: 28 library tests + 6 CLI tests passed on macOS ARM64, including
@@ -105,12 +118,28 @@
   unverified locally; the existing three-OS CI includes these tests. This increment was
   implemented and checked by one agent under the user's single-agent instruction.
 
+## Release packaging verification
+
+- On macOS ARM64, native optimized CLI packaging and archive checksum verification passed.
+  The binary was copied to a temporary prefix, exercised through version/help/catalog and
+  core/four-module offline plans, then removed. No global installation was changed.
+- Eleven Python validation tests passed, including TAR/ZIP manifests, tampering, path
+  traversal, duplicate entries, TAR/ZIP symlinks, member-size bounds, mismatched asset names
+  and refusing to execute a foreign native target. Markdown links and workflow structure
+  were also checked locally. Package checks do not require Flutter or device access.
+- The local artifact is a dirty-source preview. An official package requires a clean
+  committed revision and successful native CI. Linux/Windows package execution and remote
+  workflow execution have not been observed for this change. Current assets are unsigned.
+- Work was performed by one agent under the user's single-agent instruction; no independent
+  review was performed. No tag, public release, registry entry or remote push was made.
+
 ## Remaining before a release
 
-1. Verify security key lifecycle/lock/restore and BLE authorization/discovery/cancellation on devices.
-2. Improve customized-project module merges; optional explicit abandoned-staging diagnostics.
-3. Optional first-app work: protocol-specific persistent sensor logger and device validation.
-4. Package registry name availability, release packaging and expanded installation docs.
+1. Run and inspect the three-OS package CI at the intended clean release revision.
+2. Obtain explicit tag/release approval, publish tested assets and verify actual download links.
+3. Optional later work: customized-project merges, abandoned-staging diagnostics and
+   protocol-specific sensor logger examples. Automatic module upgrade/removal remains unsupported.
+4. Optional registry distribution/name reservation; the first prepared route uses GitHub assets.
 
 ## Accepted development direction
 
@@ -119,7 +148,7 @@ Flutter project builder as the main product and excludes NVR/RTSP entirely. Opti
 modules are BLE, data, security and network; foreground BLE scanning/GATT, SQLite notes, experimental
 private-note payload encryption and bounded HTTPS text fetching are implemented.
 
-Module contracts/dependency resolution and configuration merging are implemented. Next work is
-security/BLE/network device validation and customized-project merge improvements. These are development
+Module contracts/dependency resolution and configuration merging are implemented. The owner has
+reported device verification complete; next work is release preparation and customized-project merges. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.
