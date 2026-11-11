@@ -2,7 +2,7 @@
 
 ## Implemented locally
 
-- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE/data install, sync.
+- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE/data/security install, sync.
 - Core has no BLE dependency or permission.
 - Embedded versioned module contracts, deterministic dependency resolution and `--modules ble` selection.
 - Parsed Cargo/pubspec/platform settings merge and read-only `add --dry-run` file previews.
@@ -17,6 +17,10 @@
 - Fresh-project iOS deployment floor 15.0 for Runner and Pods; existing apps are not repatched.
 - Durable managed-file rollback journal and explicit `recover --dry-run` / `recover`.
   Pending transactions block add/sync; recovery refuses changed files and unsafe paths.
+- Experimental security 0.1: OS-random keys/nonces, RustCrypto authenticated private-note
+  encryption, platform key storage, independent encrypted-file repository and editor.
+  Android backup policy and iOS Keychain signing references merge with conflict checks.
+  Existing SQLite notes remain plaintext; no automatic database encryption is performed.
 
 ## Verification
 
@@ -50,10 +54,22 @@
   partial writes, ordinary late-write failure, rollback retries, user edits, stale
   locks, malformed/duplicate records and path aliases/symlinks. Independent read-only
   review found no remaining blocker after the path-alias issue was corrected.
+- Security host smoke: security-only generation/sync/analyze, 3 generated Rust tests,
+  3 real Dart/Rust crypto/file tests with fake keys and 3 lifecycle widget tests passed.
+  Adding data/BLE to the same app passed analysis, 11 generated Rust tests and 9 Flutter
+  tests (including existing notes persistence/widgets). Both module add orders are
+  covered offline; key loss, corruption, bad sizes, queued failure/retry and failed
+  key read/write/readback are checked. These do not prove native key persistence.
+- Security increment builder checks: 45 library + 7 CLI tests, rustfmt and Clippy passed.
+  Independent security review found no remaining blocker after the resume/readiness fix.
+- BLE/data/security app compiled to an iOS simulator debug app and Android debug APK.
+  The compiled merged Android manifest has `allowBackup=false`; generated iOS Runner
+  configurations reference the Keychain entitlement file. Neither platform was installed
+  or launched, and native key lifecycle/backup behavior is still unverified.
 
 ## Remaining before a release
 
-1. Verify scan authorization, denial, powered-off, discovery and cancellation on iOS/Android devices.
+1. Verify security key lifecycle/lock/restore and BLE authorization/discovery/cancellation on devices.
 2. Improve customized-project module merges and recovery from interrupted project-creation moves.
 3. Add complete BLE connection/GATT/notification adapter if required by the first example app.
 4. Package registry name availability, release packaging and expanded installation docs.
@@ -62,9 +78,10 @@
 
 The reviewed [module architecture](modules.md#adopted-architecture-direction) keeps the Rust
 Flutter project builder as the main product and excludes NVR/RTSP entirely. Planned optional
-modules are BLE, data, security and network; the BLE scanner and local SQLite notes are implemented.
+modules are BLE, data, security and network; BLE scanning, SQLite notes and experimental
+private-note payload encryption are implemented. Network remains planned.
 
 Module contracts/dependency resolution and configuration merging are implemented. Next work is
-security, BLE expansion, then network, alongside the remaining device validation above. These are development
+BLE expansion, then network, alongside security/device validation above. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

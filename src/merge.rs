@@ -307,6 +307,47 @@ pub fn android(source: &str, entries: &[AndroidEntry]) -> Result<String> {
     append_children(source, root, &addition)
 }
 
+pub fn android_application(source: &str, attributes: &BTreeMap<String, String>) -> Result<String> {
+    if attributes.is_empty() {
+        return Ok(source.into());
+    }
+    ensure!(
+        attributes.len() == 1 && attributes.get("allowBackup").map(String::as_str) == Some("false"),
+        "unsupported Android application policy"
+    );
+    let document = parse_xml(source)?;
+    let root = document.root_element();
+    let applications: Vec<_> = root
+        .children()
+        .filter(|n| n.has_tag_name("application"))
+        .collect();
+    ensure!(
+        root.has_tag_name("manifest") && applications.len() == 1,
+        "expected one Android application"
+    );
+    let app = applications[0];
+    if let Some(existing) = app.attribute((ANDROID, "allowBackup")) {
+        ensure!(
+            existing == "false",
+            "Android backup policy conflicts; review allowBackup manually"
+        );
+        return Ok(source.into());
+    }
+    let prefix = app
+        .lookup_prefix(ANDROID)
+        .context("missing Android namespace")?;
+    let start = app.range().start;
+    ensure!(
+        source[start..].starts_with("<application"),
+        "unexpected application element"
+    );
+    let offset = start + "<application".len();
+    let mut result = source.to_string();
+    result.insert_str(offset, &format!(" {prefix}:allowBackup=\"false\""));
+    parse_xml(&result)?;
+    Ok(result)
+}
+
 pub fn ios(source: &str, entries: &[IosEntry]) -> Result<String> {
     if entries.is_empty() {
         return Ok(source.into());
@@ -374,6 +415,40 @@ fn ios_version(value: &str) -> Result<Vec<u32>> {
 
 /// Fresh upstream scaffolds only. Parse owned assignment lines, preserving all
 /// other project bytes. This is not a general-purpose existing PBX project editor.
+pub fn xcode_entitlements(source: &str, entitlements: &str) -> Result<String> {
+    ensure!(
+        entitlements == "Runner/FerruleSecurity.entitlements",
+        "unsupported Keychain entitlement path"
+    );
+    let owned = format!("CODE_SIGN_ENTITLEMENTS = {entitlements};");
+    let assignments: Vec<_> = source
+        .lines()
+        .filter(|line| line.trim_start().starts_with("CODE_SIGN_ENTITLEMENTS"))
+        .collect();
+    if !assignments.is_empty() {
+        ensure!(
+            assignments.len() == 3 && assignments.iter().all(|line| line.trim() == owned),
+            "custom code-sign entitlements require manual review"
+        );
+        return Ok(source.into());
+    }
+    let mut result = String::new();
+    let mut count = 0;
+    for line in source.split_inclusive('\n') {
+        if line.trim() == "INFOPLIST_FILE = Runner/Info.plist;" {
+            count += 1;
+            let indent = &line[..line.len() - line.trim_start().len()];
+            result.push_str(&format!("{indent}{owned}\n"));
+        }
+        result.push_str(line);
+    }
+    ensure!(
+        count == 3,
+        "expected Debug/Profile/Release Runner settings; merge Keychain entitlements manually"
+    );
+    Ok(result)
+}
+
 pub fn xcode_minimum(source: &str, minimum: &str) -> Result<String> {
     let required = ios_version(minimum)?;
     let mut found = 0;

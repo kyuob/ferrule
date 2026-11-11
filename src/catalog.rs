@@ -40,6 +40,8 @@ pub struct Module {
     #[serde(default)]
     pub android: Vec<AndroidEntry>,
     #[serde(default)]
+    pub android_application: BTreeMap<String, String>,
+    #[serde(default)]
     pub ios: Vec<IosEntry>,
     #[serde(default)]
     pub rust_registrations: BTreeMap<String, Vec<String>>,
@@ -47,6 +49,8 @@ pub struct Module {
     pub flutter_pages: Vec<FlutterPage>,
     #[serde(default)]
     pub ios_minimum_version: Option<String>,
+    #[serde(default)]
+    pub ios_entitlements: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,6 +260,24 @@ pub(crate) fn template(id: &str) -> Result<&'static str> {
         "data/notes_page.dart" => include_str!("../templates/data/notes_page.dart"),
         "data/notes_page_test.dart" => include_str!("../templates/data/notes_page_test.dart"),
         "data/data_bridge_test.dart" => include_str!("../templates/data/data_bridge_test.dart"),
+        "security/Runner.entitlements" => include_str!("../templates/security/Runner.entitlements"),
+        "security/crypto_port.rs" => include_str!("../templates/security/crypto_port.rs"),
+        "security/crypto.rs" => include_str!("../templates/security/crypto.rs"),
+        "security/private_note.rs" => include_str!("../templates/security/private_note.rs"),
+        "security/composition.rs" => include_str!("../templates/security/composition.rs"),
+        "security/api.rs" => include_str!("../templates/security/api.rs"),
+        "security/private_note_repository.dart" => {
+            include_str!("../templates/security/private_note_repository.dart")
+        }
+        "security/private_note_page.dart" => {
+            include_str!("../templates/security/private_note_page.dart")
+        }
+        "security/security_bridge_test.dart" => {
+            include_str!("../templates/security/security_bridge_test.dart")
+        }
+        "security/private_note_page_test.dart" => {
+            include_str!("../templates/security/private_note_page_test.dart")
+        }
         "ble/main.dart" => include_str!("../templates/ble/main.dart"),
         "ble/ble_page.dart" => include_str!("../templates/ble/ble_page.dart"),
         "ble/ble_transport.dart" => include_str!("../templates/ble/ble_transport.dart"),
@@ -317,7 +339,7 @@ mod tests {
     #[test]
     fn planned_and_excluded_modules_are_unavailable() {
         let c = Catalog::embedded().unwrap();
-        for id in ["network", "security", "rtsp", "nvr"] {
+        for id in ["network", "rtsp", "nvr"] {
             assert!(c.resolve(&[id.into()], &["ios", "android"]).is_err());
         }
     }

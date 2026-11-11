@@ -7,7 +7,7 @@ fn fixture() -> tempfile::TempDir {
         (MAIN, "// upstream main\n"),
         (
             "ios/Runner.xcodeproj/project.pbxproj",
-            "{\n  IPHONEOS_DEPLOYMENT_TARGET = 13.0;\n}\n",
+            "{\n  IPHONEOS_DEPLOYMENT_TARGET = 13.0;\n  INFOPLIST_FILE = Runner/Info.plist;\n  INFOPLIST_FILE = Runner/Info.plist;\n  INFOPLIST_FILE = Runner/Info.plist;\n}\n",
         ),
         (
             "ios/Podfile",
@@ -503,9 +503,111 @@ fn module_conflict_is_detected_before_any_file_changes() {
 }
 
 #[test]
+fn security_is_optional_composes_in_both_orders_and_preserves_private_settings() {
+    for order in [["security", "data", "ble"], ["ble", "data", "security"]] {
+        let project = fixture();
+        assert!(
+            !read(project.path(), "rust/Cargo.toml")
+                .unwrap()
+                .contains("chacha")
+        );
+        assert!(
+            !read(project.path(), "pubspec.yaml")
+                .unwrap()
+                .contains("secure_storage")
+        );
+        for module in order {
+            add_modules(project.path(), &[module.into()]).unwrap();
+        }
+        let record = load(project.path()).unwrap();
+        assert_eq!(record.module_versions["security"], "0.1.0");
+        let pages = read(project.path(), MODULE_PAGES).unwrap();
+        for widget in ["PrivateNotePage", "NotesPage", "BlePage"] {
+            assert!(pages.contains(widget));
+        }
+        let android = read(project.path(), "android/app/src/main/AndroidManifest.xml").unwrap();
+        assert!(android.contains("allowBackup=\"false\""));
+        assert_eq!(
+            read(project.path(), "ios/Runner.xcodeproj/project.pbxproj")
+                .unwrap()
+                .matches("CODE_SIGN_ENTITLEMENTS = Runner/FerruleSecurity.entitlements;")
+                .count(),
+            3
+        );
+        assert!(
+            project
+                .path()
+                .join("ios/Runner/FerruleSecurity.entitlements")
+                .is_file()
+        );
+        let previous = read(project.path(), MANIFEST).unwrap();
+        assert!(
+            add_modules(project.path(), &["security".into()])
+                .unwrap()
+                .changes
+                .is_empty()
+        );
+        assert_eq!(read(project.path(), MANIFEST).unwrap(), previous);
+    }
+}
+
+#[test]
+fn security_preserves_custom_signing_entitlements() {
+    let project = fixture();
+    let path = "ios/Runner.xcodeproj/project.pbxproj";
+    let custom = format!(
+        "{}\nCODE_SIGN_ENTITLEMENTS = Runner/Custom.entitlements;\n",
+        read(project.path(), path).unwrap()
+    );
+    fs::write(project.path().join(path), &custom).unwrap();
+    let manifest = read(project.path(), MANIFEST).unwrap();
+    assert!(add_modules(project.path(), &["security".into()]).is_err());
+    assert_eq!(read(project.path(), path).unwrap(), custom);
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), manifest);
+    assert!(
+        !project
+            .path()
+            .join("ios/Runner/FerruleSecurity.entitlements")
+            .exists()
+    );
+}
+
+#[test]
+fn security_backup_policy_uses_the_application_namespace_scope() {
+    let source = r#"<manifest xmlns:a="http://schemas.android.com/apk/res/android"><application xmlns:a="urn:other" xmlns:b="http://schemas.android.com/apk/res/android" a:label="keep &gt; this" /></manifest>"#;
+    let policy = BTreeMap::from([("allowBackup".into(), "false".into())]);
+    let merged = merge::android_application(source, &policy).unwrap();
+    let document = roxmltree::Document::parse(&merged).unwrap();
+    let app = document
+        .descendants()
+        .find(|n| n.has_tag_name("application"))
+        .unwrap();
+    assert_eq!(
+        app.attribute(("http://schemas.android.com/apk/res/android", "allowBackup")),
+        Some("false")
+    );
+    assert!(merged.contains("a:label=\"keep &gt; this\""));
+}
+
+#[test]
+fn security_refuses_conflicting_backup_policy_without_partial_writes() {
+    let project = fixture();
+    let path = "android/app/src/main/AndroidManifest.xml";
+    let original = read(project.path(), path)
+        .unwrap()
+        .replace("<application", "<application android:allowBackup=\"true\"");
+    fs::write(project.path().join(path), &original).unwrap();
+    let manifest = read(project.path(), MANIFEST).unwrap();
+    assert!(add_modules(project.path(), &["security".into()]).is_err());
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), manifest);
+    assert_eq!(read(project.path(), path).unwrap(), original);
+    assert!(!project.path().join("rust/src/api/security.rs").exists());
+}
+
+#[test]
 fn planned_selection_is_rejected_before_lock_or_project_loading() {
     let empty = tempfile::tempdir().unwrap();
-    let error = add_modules(empty.path(), &["security".into()]).unwrap_err();
+    let error = add_modules(empty.path(), &["network".into()]).unwrap_err();
     assert!(error.to_string().contains("planned"));
     assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
 }

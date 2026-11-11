@@ -1,8 +1,81 @@
 schema = 1
 id = "security"
-version = "0.0.0"
-availability = "planned"
-description = "Planned platform key storage and Rust encryption; not installable"
+version = "0.1.0"
+availability = "available"
+description = "Experimental platform-held key and Rust authenticated private-note encryption"
 platforms = ["ios", "android"]
 requires = ["core"]
 conflicts = []
+api_modules = ["security"]
+ios_entitlements = "Runner/FerruleSecurity.entitlements"
+prerequisites = ["Core 0.2+", "Android API 24+ / iOS 15+", "Physical key persistence/lock/restore verification required before production"]
+checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml", "security host bridge tests", "mobile builds and device key lifecycle checks"]
+
+[cargo_dependencies.chacha20poly1305]
+version = "=0.11.0"
+default_features = false
+features = ["alloc", "zeroize"]
+[cargo_dependencies.getrandom]
+version = "=0.4.3"
+[cargo_dependencies.zeroize]
+version = "=1.8.2"
+
+[flutter_dependencies]
+# 11.2 requires win32 6 via its Windows plugin, conflicting with the BLE baseline.
+flutter_secure_storage = "10.3.4"
+path_provider = "2.1.6"
+
+[android_application]
+allowBackup = "false"
+
+[rust_registrations]
+"rust/src/ports/mod.rs" = ["crypto"]
+"rust/src/infra/mod.rs" = ["crypto"]
+"rust/src/usecase/mod.rs" = ["private_note"]
+"rust/src/composition/mod.rs" = ["security"]
+
+[[flutter_pages]]
+import = "features/security/private_note_page.dart"
+label = "Private note"
+widget = "PrivateNotePage"
+
+[[files]]
+path = "ios/Runner/FerruleSecurity.entitlements"
+template = "security/Runner.entitlements"
+mode = "create"
+[[files]]
+path = "rust/src/ports/crypto.rs"
+template = "security/crypto_port.rs"
+mode = "create"
+[[files]]
+path = "rust/src/infra/crypto.rs"
+template = "security/crypto.rs"
+mode = "create"
+[[files]]
+path = "rust/src/usecase/private_note.rs"
+template = "security/private_note.rs"
+mode = "create"
+[[files]]
+path = "rust/src/composition/security.rs"
+template = "security/composition.rs"
+mode = "create"
+[[files]]
+path = "rust/src/api/security.rs"
+template = "security/api.rs"
+mode = "create"
+[[files]]
+path = "lib/repositories/private_note_repository.dart"
+template = "security/private_note_repository.dart"
+mode = "create"
+[[files]]
+path = "lib/features/security/private_note_page.dart"
+template = "security/private_note_page.dart"
+mode = "create"
+[[files]]
+path = "test/security_bridge_test.dart"
+template = "security/security_bridge_test.dart"
+mode = "create"
+[[files]]
+path = "test/private_note_page_test.dart"
+template = "security/private_note_page_test.dart"
+mode = "create"

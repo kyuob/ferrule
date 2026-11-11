@@ -429,7 +429,7 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
         } else {
             ensure!(
                 added.iter().all(|m| m.id == "ble"),
-                "data requires the core 0.2 architecture scaffold; create a new app and merge your changes manually"
+                "this module requires the core 0.2 architecture scaffold; create a new app and merge your changes manually"
             );
             // Preserve the supported legacy core/BLE path without pretending to upgrade its core.
             changes.insert(
@@ -446,8 +446,17 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
         let mut flutter_dependencies = BTreeMap::new();
         let mut cargo_dependencies: BTreeMap<String, catalog::CargoDependency> = BTreeMap::new();
         let mut android_entries = Vec::new();
+        let mut android_application = BTreeMap::new();
         let mut ios_entries = Vec::new();
         for module in &resolved {
+            for (key, value) in &module.android_application {
+                if let Some(previous) = android_application.insert(key.clone(), value.clone()) {
+                    ensure!(
+                        previous == *value,
+                        "Android application policy conflict: {key}"
+                    );
+                }
+            }
             flutter_dependencies.extend(module.flutter_dependencies.clone());
             for (name, dep) in &module.cargo_dependencies {
                 if let Some(existing) = cargo_dependencies.get_mut(name) {
@@ -458,6 +467,17 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
             }
         }
         for module in &added {
+            if let Some(entitlements) = &module.ios_entitlements {
+                let path = "ios/Runner.xcodeproj/project.pbxproj";
+                ensure!(
+                    !changes.contains_key(path),
+                    "module Xcode settings collision"
+                );
+                changes.insert(
+                    path.into(),
+                    merge::xcode_entitlements(&read(project, path)?, entitlements)?,
+                );
+            }
             for (path, children) in &module.rust_registrations {
                 ensure!(
                     !changes.contains_key(path),
@@ -512,9 +532,12 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
             ),
             (
                 "android/app/src/main/AndroidManifest.xml",
-                merge::android(
-                    &read(project, "android/app/src/main/AndroidManifest.xml")?,
-                    &android_entries,
+                merge::android_application(
+                    &merge::android(
+                        &read(project, "android/app/src/main/AndroidManifest.xml")?,
+                        &android_entries,
+                    )?,
+                    &android_application,
                 )?,
             ),
             (

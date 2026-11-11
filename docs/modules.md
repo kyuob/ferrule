@@ -91,14 +91,14 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 | core | Project creation, bridge/codegen, module composition, platform build configuration | Architecture skeleton, contracts, resolver, screen composition and settings merge implemented; runtime presets planned |
 | ble | Optional central BLE transport and Rust sensor protocol handling | Flutter transport + scanner implemented; GATT/device validation pending |
 | data | Rust-owned local persistence and migrations | SQLite notes adapter, migrations and Flutter repository/UI implemented |
-| security | Platform key storage plus Rust application encryption | Planned; no cryptographic service installed |
+| security | Platform key storage plus Rust application encryption | Experimental private-note payload encryption; device key lifecycle validation pending |
 | network | TLS HTTP initially; WebSocket/QUIC only when independently verified | Planned; no networking module installed |
 
 ### Module contract
 
 The embedded `modules/*.toml` manifests now declare identity/version/availability, platforms,
 `requires`/`conflicts`, Rust/Flutter dependency fragments, template files, API registrations,
-Android declarations, iOS string settings, prerequisites and check descriptions. Catalog
+Android declarations/application policies, iOS string/signing settings, prerequisites and check descriptions. Catalog
 data is compiled into Ferrule, not loaded as arbitrary external code. Checks/prerequisites
 are descriptive metadata; the resolver does not execute them or imply device validation.
 
@@ -164,7 +164,8 @@ again under the operation lock. Older schema-1 records without module versions r
 - **Security:** platform key storage needs its own initialization, accessibility/backup policy and
   device checks. A `data + security` payload-encryption option must not be advertised as whole-file
   database encryption: SQLite metadata, journals/WAL and backups need a separately tested backend.
-  Security is not implemented; the data module has no encryption guarantee.
+  The security module supplies a separate private-note example; the data module still
+  has no encryption guarantee. See [security boundaries](security.md).
 - **Network:** preserve TLS/certificate verification. Never add global ATS exceptions or Android
   cleartext allowances as the network default. Initialize the selected rustls provider centrally and
   check the combined feature graph. `aws-lc-rs` is a candidate pending mobile toolchain verification;
@@ -183,16 +184,16 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
    read-only add previews and structural dependency/platform patches. Existing commands remain compatible.
 2. Implemented locally: architecture skeleton and a data-only notes app, paths, migrations,
    reopen persistence and BLE screen composition. See status for mobile build evidence and blockers.
-3. Add security and an encrypted-notes example. Test data and security independently and together;
-   prove key persistence, tamper rejection and real-device behavior before claiming support.
+3. Security/private-note example implemented experimentally. Independent/combined host checks
+   exercise tamper/key-loss behavior; native key persistence and device lifecycle remain gates.
 4. Move the existing BLE module onto the same contract; add GATT and a sensor-logger example.
    Validate permissions, connect/read/write/notify, cancellation and disconnect handling on hardware.
 5. Add network with verified TLS defaults, then supported combination tests. Begin with HTTP;
    WebSocket and QUIC are separate increments, not automatic promises.
 
 Implemented syntax includes `ferrule new app --modules ble,data`, `ferrule add data --dry-run`, and `ferrule add ble`.
-`--ble` remains a shorthand. `ferrule new notes --modules data,security` is future syntax for planned
-modules and currently returns an unavailable-module error without creating a project.
+`--ble` remains a shorthand. `ferrule new notes --modules data,security` installs separate
+regular/private-note screens. It does not automatically encrypt existing SQLite records.
 
 For four optional modules, the eventual core-plus-subset matrix has 16 selections. Run generator
 and feature/dependency checks for every declared supported selection, plus iOS/Android compilation.

@@ -49,8 +49,8 @@ The module uses `flutter_reactive_ble` for native mobile transport, **not btlepl
 Connection, GATT reads/writes and notifications are not implemented in this MVP.
 See [module boundaries](docs/modules.md) and [verification status](docs/status.md).
 `--ble` remains a compatible shorthand for `--modules ble`. Module IDs may be
-comma-separated; `core`, `ble` and `data` are available. `security` and `network`
-are listed as planned and are rejected before project creation or modification.
+comma-separated; `core`, `ble`, `data` and experimental `security` are available.
+`network` is planned and rejected before project creation or modification.
 
 ## Optional local data
 
@@ -71,6 +71,21 @@ composes optional screens without modules replacing `main.dart`. New apps target
 15 or later, including their Pod deployment floor. Existing core 0.1 apps remain
 readable and can add BLE; adding data requires a new scaffold and a reviewed manual
 migration. Ferrule does not silently upgrade or rewrite an older app.
+
+## Optional security (experimental)
+
+```sh
+ferrule new private_app --modules security
+ferrule new sensor_notes --modules ble,data,security
+ferrule sync --project private_app
+```
+
+Security adds a separate encrypted private-note file, Rust authenticated encryption
+and a key stored through the platform secure-storage plugin. Ordinary SQLite notes
+remain plaintext. Core alone has no cryptographic or secure-storage dependency.
+Android backup policy and iOS Keychain entitlement settings are added with conflict
+checks. Hardware key persistence, locking and backup/restore require device validation
+before production use. See [security boundaries and checks](docs/security.md).
 
 ## Commands
 
@@ -120,6 +135,8 @@ sh scripts/check.sh
 sh scripts/smoke.sh # real generation; requires Flutter and FRB generator
 sh scripts/data-smoke.sh # notes CRUD, migrations, real Dart/Rust bridge and BLE composition
 sh scripts/android-ble-smoke.sh # sequential BLE-only and BLE/data APK builds; requires Android SDK
+sh scripts/security-smoke.sh # security-only and combined real Rust bridge tests; fake platform keys
+sh scripts/security-mobile-smoke.sh PATH_TO_SYNCED_APP # both mobile builds and backup/entitlement checks
 sh scripts/platform-smoke.sh PATH_TO_SYNCED_APP both # compile only; needs both SDKs
 sh scripts/ferrule.sh doctor # run directly from this checkout without a global install
 ```
@@ -143,9 +160,10 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 `ferrule add ble --dry-run --project my_app`으로 변경할 파일을 먼저 확인할 수 있습니다.
 
 `--modules data`로 SQLite 메모 앱을 만들고 `--modules ble,data`로 함께 선택할 수 있습니다.
-기본 아키텍처와 로컬 저장은 구현됐으며 암호화·동기화는 제공하지 않습니다.
+`--modules security`는 별도의 암호화 비공개 메모 예제를 추가합니다. 기존 SQLite
+메모는 평문으로 유지되며, 키 유지·잠금·백업 복원은 실기기 검증이 필요합니다.
 현재는 초기 MVP이며, 실기기 확인과 패키지 배포는 별도 단계입니다.
-security·network, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
+network, 동기화, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
 확장 방향은 [모듈 설계](docs/modules.md#adopted-architecture-direction)에 정리했습니다.
 NVR·RTSP는 프로젝트 범위에서 제외합니다.
 
@@ -153,6 +171,8 @@ NVR·RTSP는 프로젝트 범위에서 제외합니다.
 
 - [flutter_rust_bridge](https://github.com/fzyzcjy/flutter_rust_bridge): official project/code generator.
 - [flutter_reactive_ble](https://github.com/PhilipsHue/flutter_reactive_ble): optional BLE transport.
+- [RustCrypto AEAD](https://github.com/RustCrypto/AEADs) and
+  [flutter_secure_storage](https://pub.dev/packages/flutter_secure_storage/versions/10.3.4): optional security.
 - [permission_handler](https://pub.dev/packages/permission_handler) and
   [device_info_plus](https://pub.dev/packages/device_info_plus): Android permission flow.
 
