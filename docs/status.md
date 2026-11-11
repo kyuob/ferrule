@@ -15,6 +15,9 @@
   Flutter path-provider repository, notes UI and explicit native-session cleanup.
 - Legacy core 0.1 records/BLE addition remain supported; data requires a new scaffold/manual merge.
 - Fresh-project iOS deployment floor 15.0 for Runner and Pods; existing apps are not repatched.
+- BLE 0.2 foreground GATT inspector: instance-aware discovery/selection, read/write,
+  notification/indication updates, explicit disconnect and bounded live history.
+  Subscription cancellation is tracked across errors, timeout and lifecycle teardown.
 - Durable managed-file rollback journal and explicit `recover --dry-run` / `recover`.
   Pending transactions block add/sync; recovery refuses changed files and unsafe paths.
 - Experimental security 0.1: OS-random keys/nonces, RustCrypto authenticated private-note
@@ -66,22 +69,33 @@
   The compiled merged Android manifest has `allowBackup=false`; generated iOS Runner
   configurations reference the Keychain entitlement file. Neither platform was installed
   or launched, and native key lifecycle/backup behavior is still unverified.
+- BLE 0.2 increment: 46 library + 7 CLI tests, rustfmt and Clippy passed. Shared
+  Rust registration fragments now merge when data/security are added in one operation;
+  managed-hash/template-collision checks remain intact. BLE 0.1.0/0.1.1 records are readable.
+- Fresh BLE-only app passed analysis, 3 generated Rust tests and 16 fake-radio
+  controller/widget tests. The same app added data/security together, synchronized,
+  passed analysis, 11 generated Rust tests and 25 Flutter tests including real host
+  SQLite/crypto bridges and fake-key/radio lifecycle checks.
+- The BLE 0.2/data/security app compiled for iOS simulator and Android debug APK.
+  Independent ownership review found no remaining blocker after fixing pending
+  notification cancellation and removing the SDK's independently owned prescan.
+  No app installation, radio connection or physical GATT operation was performed.
 
 ## Remaining before a release
 
 1. Verify security key lifecycle/lock/restore and BLE authorization/discovery/cancellation on devices.
 2. Improve customized-project module merges and recovery from interrupted project-creation moves.
-3. Add complete BLE connection/GATT/notification adapter if required by the first example app.
+3. Optional first-app work: protocol-specific persistent sensor logger and device validation.
 4. Package registry name availability, release packaging and expanded installation docs.
 
 ## Accepted development direction
 
 The reviewed [module architecture](modules.md#adopted-architecture-direction) keeps the Rust
 Flutter project builder as the main product and excludes NVR/RTSP entirely. Planned optional
-modules are BLE, data, security and network; BLE scanning, SQLite notes and experimental
+modules are BLE, data, security and network; foreground BLE scanning/GATT, SQLite notes and experimental
 private-note payload encryption are implemented. Network remains planned.
 
 Module contracts/dependency resolution and configuration merging are implemented. Next work is
-BLE expansion, then network, alongside security/device validation above. These are development
+network, alongside security/BLE device validation and customized-project merge improvements. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

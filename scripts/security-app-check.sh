@@ -19,5 +19,8 @@ set -- test/security_bridge_test.dart test/private_note_page_test.dart
 if [ -f test/data_bridge_test.dart ]; then
   set -- "$@" test/data_bridge_test.dart test/notes_page_test.dart
 fi
+if [ -f test/ble_session_test.dart ]; then
+  set -- "$@" test/ble_session_test.dart test/ble_page_test.dart
+fi
 FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR="$PWD/rust/target/debug" flutter test "$@" --dart-define="FERRULE_TEST_LIBRARY=$HOST_LIBRARY"
 echo "PASS: security host checks (real Rust crypto, fake platform key storage)"

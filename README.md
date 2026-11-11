@@ -44,9 +44,11 @@ ferrule sync --project sensor_app
 ```
 
 The BLE module adds Flutter dependencies, Android permissions, the iOS Bluetooth
-usage description, a foreground scanner and a Rust advertisement decoder.
+usage description, a foreground scanner and instance-aware GATT inspection.
 The module uses `flutter_reactive_ble` for native mobile transport, **not btleplug**.
-Connection, GATT reads/writes and notifications are not implemented in this MVP.
+BLE 0.2 adds connect/disconnect, characteristic reads/writes and live updates,
+with bounded waits, cancellation and Rust byte formatting. Physical-device behavior
+is still unverified. See [BLE scope and migration](docs/ble.md).
 See [module boundaries](docs/modules.md) and [verification status](docs/status.md).
 `--ble` remains a compatible shorthand for `--modules ble`. Module IDs may be
 comma-separated; `core`, `ble`, `data` and experimental `security` are available.
@@ -135,6 +137,7 @@ sh scripts/check.sh
 sh scripts/smoke.sh # real generation; requires Flutter and FRB generator
 sh scripts/data-smoke.sh # notes CRUD, migrations, real Dart/Rust bridge and BLE composition
 sh scripts/android-ble-smoke.sh # sequential BLE-only and BLE/data APK builds; requires Android SDK
+sh scripts/gatt-smoke.sh # BLE-only and combined GATT/session/widget checks with fake radio input
 sh scripts/security-smoke.sh # security-only and combined real Rust bridge tests; fake platform keys
 sh scripts/security-mobile-smoke.sh PATH_TO_SYNCED_APP # both mobile builds and backup/entitlement checks
 sh scripts/platform-smoke.sh PATH_TO_SYNCED_APP both # compile only; needs both SDKs

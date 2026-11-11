@@ -281,6 +281,11 @@ pub(crate) fn template(id: &str) -> Result<&'static str> {
         "ble/main.dart" => include_str!("../templates/ble/main.dart"),
         "ble/ble_page.dart" => include_str!("../templates/ble/ble_page.dart"),
         "ble/ble_transport.dart" => include_str!("../templates/ble/ble_transport.dart"),
+        "ble/ble_client.dart" => include_str!("../templates/ble/ble_client.dart"),
+        "ble/ble_session.dart" => include_str!("../templates/ble/ble_session.dart"),
+        "ble/fake_ble_client.dart" => include_str!("../templates/ble/fake_ble_client.dart"),
+        "ble/ble_session_test.dart" => include_str!("../templates/ble/ble_session_test.dart"),
+        "ble/ble_page_test.dart" => include_str!("../templates/ble/ble_page_test.dart"),
         "ble/ble.rs" => include_str!("../templates/ble/ble.rs"),
         _ => bail!("unknown embedded template: {id}"),
     })

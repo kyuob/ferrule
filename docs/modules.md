@@ -28,20 +28,22 @@ into Flutter UI. Nothing claims Rust-native BLE is implemented here.
 Installed parts:
 
 - Foreground scanner, 15-second timeout, explicit start/stop and lifecycle cancellation.
+- Instance-aware GATT connect/discover/read/write/notify inspector with bounded live history.
 - Android 12+ scan/connect runtime permissions; Android <=11 location permission.
 - iOS Bluetooth purpose string; native CoreBluetooth triggers the system authorization.
 - Rust payload-to-hex example. Replace it with a typed sensor protocol decoder in a real app.
 
-Not included: connection, read/write, notifications, peripheral/advertising, Classic
-Bluetooth, background scanning, hardware validation, or automatic reconnection.
+Not included: peripheral/advertising, Classic Bluetooth, background scanning,
+hardware validation, automatic reconnection or persistent sensor logging.
 `neverForLocation` is a deliberate foreground-sensor default: it can filter some beacons.
 Apps deriving location must revise declarations/permission policy rather than reusing it blindly.
 The module does not add iOS background modes or request location permissions on iOS.
 
-BLE 0.1.1 pins `permission_handler` to 12.0.1 for the Flutter 3.41 / AGP 8 scaffold.
+BLE 0.2 retains `permission_handler` 12.0.1 from 0.1.1 for the Flutter 3.41 / AGP 8 scaffold.
 The 13.0.2 package resolves Android plugin 14.x, whose AGP 9 Kotlin configuration
 does not compile with that scaffold. Existing BLE 0.1.0 records remain readable;
-repeating `add ble` does not migrate their dependencies. To repair such a project,
+repeating `add ble` does not migrate dependencies or install new GATT templates.
+See [BLE scope/migration](ble.md). To repair the old dependency graph,
 review and change its direct `permission_handler` constraint to `12.0.1`, run
 `ferrule sync`, inspect the updated pub lockfile, and re-run analysis and platform
 builds. Do not edit the global pub cache or add a dependency override as a workaround.
@@ -89,7 +91,7 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 | Component | Responsibility | Current status |
 | --- | --- | --- |
 | core | Project creation, bridge/codegen, module composition, platform build configuration | Architecture skeleton, contracts, resolver, screen composition and settings merge implemented; runtime presets planned |
-| ble | Optional central BLE transport and Rust sensor protocol handling | Flutter transport + scanner implemented; GATT/device validation pending |
+| ble | Optional central BLE transport and Rust sensor protocol handling | Foreground scanner + GATT inspector implemented; hardware/protocol validation pending |
 | data | Rust-owned local persistence and migrations | SQLite notes adapter, migrations and Flutter repository/UI implemented |
 | security | Platform key storage plus Rust application encryption | Experimental private-note payload encryption; device key lifecycle validation pending |
 | network | TLS HTTP initially; WebSocket/QUIC only when independently verified | Planned; no networking module installed |
@@ -186,8 +188,8 @@ These sources explain boundaries; they do not establish Ferrule mobile compatibi
    reopen persistence and BLE screen composition. See status for mobile build evidence and blockers.
 3. Security/private-note example implemented experimentally. Independent/combined host checks
    exercise tamper/key-loss behavior; native key persistence and device lifecycle remain gates.
-4. Move the existing BLE module onto the same contract; add GATT and a sensor-logger example.
-   Validate permissions, connect/read/write/notify, cancellation and disconnect handling on hardware.
+4. Foreground BLE GATT inspector implemented. Hardware validation of permissions,
+   connect/read/write/notify and cancellation remains; a persistent sensor logger is future app work.
 5. Add network with verified TLS defaults, then supported combination tests. Begin with HTTP;
    WebSocket and QUIC are separate increments, not automatic promises.
 

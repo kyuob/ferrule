@@ -448,6 +448,7 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
         let mut android_entries = Vec::new();
         let mut android_application = BTreeMap::new();
         let mut ios_entries = Vec::new();
+        let mut registrations: BTreeMap<String, String> = BTreeMap::new();
         for module in &resolved {
             for (key, value) in &module.android_application {
                 if let Some(previous) = android_application.insert(key.clone(), value.clone()) {
@@ -488,7 +489,7 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
                     manifest.managed.get(path) == Some(&digest(source.as_bytes())),
                     "{path} was edited; merge module registration manually"
                 );
-                let mut source = source;
+                let source = registrations.entry(path.clone()).or_insert(source);
                 for child in children {
                     ensure!(
                         child.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
@@ -501,7 +502,6 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
                     );
                     source.push_str(&format!("\n{statement}\n"));
                 }
-                changes.insert(path.clone(), source);
                 owned.insert(path.clone());
             }
             for name in &module.api_modules {
@@ -519,6 +519,7 @@ fn prepare_add(project: &Path, requested: &[String]) -> Result<PreparedChanges> 
             android_entries.extend(module.android.clone());
             ios_entries.extend(module.ios.clone());
         }
+        changes.extend(registrations);
         changes.insert(API_MOD.into(), api);
         owned.insert(API_MOD.into());
         for (path, merged) in [

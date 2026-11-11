@@ -1,15 +1,15 @@
 schema = 1
 id = "ble"
-version = "0.1.1"
-compatible_versions = ["0.1.0"]
+version = "0.2.0"
+compatible_versions = ["0.1.0", "0.1.1"]
 availability = "available"
-description = "Optional Flutter-native mobile BLE scanner and Rust packet decoding"
+description = "Foreground BLE scan, GATT connection/read/write/updates and Rust packet display"
 platforms = ["ios", "android"]
 requires = ["core"]
 conflicts = []
 api_modules = ["ble"]
 prerequisites = ["Flutter >=3.41 / Dart >=3.11", "Bluetooth hardware and authorization for device validation"]
-checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml", "device scan/permission/cancellation checks (not yet verified)"]
+checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml", "flutter test test/ble_session_test.dart test/ble_page_test.dart", "device scan/GATT/permission/cancellation checks (not yet verified)"]
 
 [flutter_dependencies]
 flutter_reactive_ble = "5.5.0"
@@ -33,8 +33,33 @@ template = "ble/ble_transport.dart"
 mode = "create"
 
 [[files]]
+path = "lib/features/ble/ble_client.dart"
+template = "ble/ble_client.dart"
+mode = "create"
+
+[[files]]
+path = "lib/features/ble/ble_session.dart"
+template = "ble/ble_session.dart"
+mode = "create"
+
+[[files]]
 path = "rust/src/api/ble.rs"
 template = "ble/ble.rs"
+mode = "create"
+
+[[files]]
+path = "test/fake_ble_client.dart"
+template = "ble/fake_ble_client.dart"
+mode = "create"
+
+[[files]]
+path = "test/ble_session_test.dart"
+template = "ble/ble_session_test.dart"
+mode = "create"
+
+[[files]]
+path = "test/ble_page_test.dart"
+template = "ble/ble_page_test.dart"
 mode = "create"
 
 [[android]]

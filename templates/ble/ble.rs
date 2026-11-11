@@ -3,9 +3,13 @@
 #[flutter_rust_bridge::frb(sync)]
 pub fn describe_packet(bytes: Vec<u8>) -> String {
     if bytes.is_empty() {
-        return "No manufacturer data".into();
+        return "No data".into();
     }
-    bytes.iter().map(|byte| format!("{byte:02X}")).collect::<Vec<_>>().join(" ")
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02X}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(test)]
@@ -18,7 +22,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_advertisement_is_explicit() {
-        assert_eq!(describe_packet(vec![]), "No manufacturer data");
+    fn empty_payload_is_explicit() {
+        assert_eq!(describe_packet(vec![]), "No data");
     }
 }
