@@ -1,8 +1,73 @@
 schema = 1
 id = "network"
-version = "0.0.0"
-availability = "planned"
-description = "Planned TLS HTTP networking; not installable"
+version = "0.1.0"
+availability = "available"
+description = "Bounded Rust HTTPS GET with verified TLS and a Flutter response viewer"
 platforms = ["ios", "android"]
 requires = ["core"]
 conflicts = []
+api_modules = ["network"]
+prerequisites = ["Core 0.2+", "HTTPS endpoint with a public trusted certificate"]
+checks = ["flutter analyze", "generated Rust tests", "network bridge/widget checks", "iOS/Android compilation and device networking checks"]
+
+[cargo_dependencies.reqwest]
+version = "=0.12.28"
+default_features = false
+features = ["blocking", "rustls-tls"]
+
+[[android]]
+element = "uses-permission"
+name = "android.permission.INTERNET"
+
+[rust_registrations]
+"rust/src/domain/mod.rs" = ["http"]
+"rust/src/ports/mod.rs" = ["http"]
+"rust/src/usecase/mod.rs" = ["fetch_text"]
+"rust/src/infra/mod.rs" = ["https"]
+"rust/src/composition/mod.rs" = ["network"]
+
+[[flutter_pages]]
+import = "features/network/network_page.dart"
+label = "HTTPS"
+widget = "NetworkPage"
+
+[[files]]
+path = "rust/src/domain/http.rs"
+template = "network/http.rs"
+mode = "create"
+[[files]]
+path = "rust/src/ports/http.rs"
+template = "network/http_port.rs"
+mode = "create"
+[[files]]
+path = "rust/src/usecase/fetch_text.rs"
+template = "network/fetch_text.rs"
+mode = "create"
+[[files]]
+path = "rust/src/infra/https.rs"
+template = "network/https.rs"
+mode = "create"
+[[files]]
+path = "rust/src/composition/network.rs"
+template = "network/composition.rs"
+mode = "create"
+[[files]]
+path = "rust/src/api/network.rs"
+template = "network/api.rs"
+mode = "create"
+[[files]]
+path = "lib/repositories/network_repository.dart"
+template = "network/network_repository.dart"
+mode = "create"
+[[files]]
+path = "lib/features/network/network_page.dart"
+template = "network/network_page.dart"
+mode = "create"
+[[files]]
+path = "test/network_page_test.dart"
+template = "network/network_page_test.dart"
+mode = "create"
+[[files]]
+path = "test/network_bridge_test.dart"
+template = "network/network_bridge_test.dart"
+mode = "create"

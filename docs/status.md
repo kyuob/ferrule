@@ -2,11 +2,11 @@
 
 ## Implemented locally
 
-- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE/data/security install, sync.
+- Rust CLI: project plan/create, module list, toolchain doctor, optional BLE/data/security/network install, sync.
 - Core has no BLE dependency or permission.
 - Embedded versioned module contracts, deterministic dependency resolution and `--modules ble` selection.
 - Parsed Cargo/pubspec/platform settings merge and read-only `add --dry-run` file previews.
-- Planned modules are visible but not selectable; older schema-1 records remain readable.
+- Availability is explicit in module contracts; older schema-1 records remain readable.
 - Existing destinations, modified owned files, module path collisions and symlink paths are protected.
 - Three-OS offline CLI CI definition; triggered by the initial GitHub push.
 - Core 0.2 architecture: domain, ports, usecase, infra, composition and bridge API.
@@ -24,6 +24,9 @@
   encryption, platform key storage, independent encrypted-file repository and editor.
   Android backup policy and iOS Keychain signing references merge with conflict checks.
   Existing SQLite notes remain plaintext; no automatic database encryption is performed.
+- Optional network 0.1: Rust HTTPS GET, verified certificates/hostnames, no redirects/proxies,
+  bounded UTF-8 bodies, request deadlines and a manual Flutter plain-text viewer.
+  No global ATS exceptions or Android cleartext opt-ins are added.
 
 ## Verification
 
@@ -80,6 +83,16 @@
   Independent ownership review found no remaining blocker after fixing pending
   notification cancellation and removing the SDK's independently owned prescan.
   No app installation, radio connection or physical GATT operation was performed.
+- Network 0.1: 47 builder library + 7 CLI tests, rustfmt and Clippy passed.
+  Fresh network-only generation/sync passed analysis, 5 Rust tests, the explicit local TLS
+  transport test and 4 Flutter bridge/widget tests. The BLE/data/security/network app passed
+  analysis, 15 Rust tests, the local TLS transport test and 29 Flutter tests.
+  Independent read-only review found no remaining transport blocker after request-level
+  deadlines and wrapped body-timeout handling were fixed. Fixture tests cover verified success,
+  untrusted CA/wrong hostname, redirect/status rejection, body caps, header/body stalls and drip.
+  The four-module app also compiled for iOS simulator and Android debug APK; compiled Android
+  backup policy and configured iOS Keychain entitlements remained intact. No app was installed
+  or launched, and physical-device networking remains unverified.
 
 ## Remaining before a release
 
@@ -91,11 +104,11 @@
 ## Accepted development direction
 
 The reviewed [module architecture](modules.md#adopted-architecture-direction) keeps the Rust
-Flutter project builder as the main product and excludes NVR/RTSP entirely. Planned optional
-modules are BLE, data, security and network; foreground BLE scanning/GATT, SQLite notes and experimental
-private-note payload encryption are implemented. Network remains planned.
+Flutter project builder as the main product and excludes NVR/RTSP entirely. Optional
+modules are BLE, data, security and network; foreground BLE scanning/GATT, SQLite notes, experimental
+private-note payload encryption and bounded HTTPS text fetching are implemented.
 
 Module contracts/dependency resolution and configuration merging are implemented. Next work is
-network, alongside security/BLE device validation and customized-project merge improvements. These are development
+security/BLE/network device validation and customized-project merge improvements. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

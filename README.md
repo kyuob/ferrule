@@ -51,8 +51,20 @@ with bounded waits, cancellation and Rust byte formatting. Physical-device behav
 is still unverified. See [BLE scope and migration](docs/ble.md).
 See [module boundaries](docs/modules.md) and [verification status](docs/status.md).
 `--ble` remains a compatible shorthand for `--modules ble`. Module IDs may be
-comma-separated; `core`, `ble`, `data` and experimental `security` are available.
-`network` is planned and rejected before project creation or modification.
+comma-separated; `core`, `ble`, `data`, experimental `security` and `network` are available.
+
+## Optional HTTPS networking
+
+```sh
+ferrule new reader_app --modules network
+ferrule sync --project reader_app
+# Or: ferrule add network && ferrule sync
+```
+
+The Rust HTTPS reader performs manual GET requests with certificate/hostname verification,
+a 10-second request deadline and a 64 KiB UTF-8 response limit. It does not follow redirects.
+The Flutter example displays plain text; it does not render web content or store credentials.
+See [network scope and checks](docs/network.md) for TLS roots, cancellation limits and testing.
 
 ## Optional local data
 
@@ -166,7 +178,7 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 `--modules security`는 별도의 암호화 비공개 메모 예제를 추가합니다. 기존 SQLite
 메모는 평문으로 유지되며, 키 유지·잠금·백업 복원은 실기기 검증이 필요합니다.
 현재는 초기 MVP이며, 실기기 확인과 패키지 배포는 별도 단계입니다.
-network, 동기화, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
+`--modules network`는 Rust HTTPS GET 예제를 추가합니다. 동기화, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
 확장 방향은 [모듈 설계](docs/modules.md#adopted-architecture-direction)에 정리했습니다.
 NVR·RTSP는 프로젝트 범위에서 제외합니다.
 

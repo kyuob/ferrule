@@ -634,10 +634,62 @@ fn security_refuses_conflicting_backup_policy_without_partial_writes() {
 }
 
 #[test]
-fn planned_selection_is_rejected_before_lock_or_project_loading() {
+fn network_is_optional_merges_in_all_module_orders_and_is_idempotent() {
+    for order in [
+        ["network", "security", "data", "ble"],
+        ["ble", "data", "security", "network"],
+    ] {
+        let project = fixture();
+        let cargo_before = read(project.path(), "rust/Cargo.toml").unwrap();
+        assert!(!cargo_before.contains("reqwest"));
+        for module in order {
+            let preview = preview_add(project.path(), &[module.into()]).unwrap();
+            assert!(preview.added_modules.contains(&module.to_string()));
+            add_modules(project.path(), &[module.into()]).unwrap();
+        }
+        let cargo = read(project.path(), "rust/Cargo.toml").unwrap();
+        assert!(cargo.contains("reqwest"));
+        assert!(cargo.contains("rustls-tls"));
+        assert!(!cargo.contains("native-tls"));
+        let android = read(project.path(), "android/app/src/main/AndroidManifest.xml").unwrap();
+        assert_eq!(android.matches("android.permission.INTERNET").count(), 1);
+        assert!(!android.contains("usesCleartextTraffic"));
+        let plist = read(project.path(), "ios/Runner/Info.plist").unwrap();
+        assert!(!plist.contains("NSAppTransportSecurity"));
+        let pages = read(project.path(), MODULE_PAGES).unwrap();
+        assert!(pages.contains("NetworkPage"));
+        let before = read(project.path(), MANIFEST).unwrap();
+        assert!(
+            add_modules(project.path(), &["network".into()])
+                .unwrap()
+                .changes
+                .is_empty()
+        );
+        assert_eq!(read(project.path(), MANIFEST).unwrap(), before);
+    }
+    let project = fixture();
+    add_modules(
+        project.path(),
+        &[
+            "network".into(),
+            "data".into(),
+            "security".into(),
+            "ble".into(),
+        ],
+    )
+    .unwrap();
+    assert!(
+        read(project.path(), "rust/src/composition/mod.rs")
+            .unwrap()
+            .contains("pub mod network;")
+    );
+}
+
+#[test]
+fn excluded_selection_is_rejected_before_lock_or_project_loading() {
     let empty = tempfile::tempdir().unwrap();
-    let error = add_modules(empty.path(), &["network".into()]).unwrap_err();
-    assert!(error.to_string().contains("planned"));
+    let error = add_modules(empty.path(), &["rtsp".into()]).unwrap_err();
+    assert!(error.to_string().contains("unknown module"));
     assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
 }
 

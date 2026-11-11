@@ -278,6 +278,22 @@ pub(crate) fn template(id: &str) -> Result<&'static str> {
         "security/private_note_page_test.dart" => {
             include_str!("../templates/security/private_note_page_test.dart")
         }
+        "network/http.rs" => include_str!("../templates/network/http.rs"),
+        "network/http_port.rs" => include_str!("../templates/network/http_port.rs"),
+        "network/fetch_text.rs" => include_str!("../templates/network/fetch_text.rs"),
+        "network/https.rs" => include_str!("../templates/network/https.rs"),
+        "network/composition.rs" => include_str!("../templates/network/composition.rs"),
+        "network/api.rs" => include_str!("../templates/network/api.rs"),
+        "network/network_repository.dart" => {
+            include_str!("../templates/network/network_repository.dart")
+        }
+        "network/network_page.dart" => include_str!("../templates/network/network_page.dart"),
+        "network/network_page_test.dart" => {
+            include_str!("../templates/network/network_page_test.dart")
+        }
+        "network/network_bridge_test.dart" => {
+            include_str!("../templates/network/network_bridge_test.dart")
+        }
         "ble/main.dart" => include_str!("../templates/ble/main.dart"),
         "ble/ble_page.dart" => include_str!("../templates/ble/ble_page.dart"),
         "ble/ble_transport.dart" => include_str!("../templates/ble/ble_transport.dart"),
@@ -342,9 +358,9 @@ mod tests {
         assert!(c.resolve(&[], &["windows"]).is_err());
     }
     #[test]
-    fn planned_and_excluded_modules_are_unavailable() {
+    fn excluded_modules_are_unavailable() {
         let c = Catalog::embedded().unwrap();
-        for id in ["network", "rtsp", "nvr"] {
+        for id in ["rtsp", "nvr"] {
             assert!(c.resolve(&[id.into()], &["ios", "android"]).is_err());
         }
     }

@@ -98,7 +98,7 @@ fn modules_selection_and_ble_alias_produce_identical_plans() {
 
 #[test]
 fn unavailable_modules_fail_without_creating_output() {
-    for module in ["network", "rtsp"] {
+    for module in ["rtsp", "nvr"] {
         let dir = tempfile::tempdir().unwrap();
         Command::new(env!("CARGO_BIN_EXE_ferrule"))
             .args(["new", "example", "--modules", module, "--directory"])
@@ -111,7 +111,7 @@ fn unavailable_modules_fail_without_creating_output() {
 }
 
 #[test]
-fn module_catalog_marks_future_modules_as_planned() {
+fn module_catalog_exposes_optional_network_and_excludes_rtsp() {
     let output = Command::new(env!("CARGO_BIN_EXE_ferrule"))
         .args(["modules", "--json"])
         .env("PATH", "")
@@ -127,7 +127,8 @@ fn module_catalog_marks_future_modules_as_planned() {
         .iter()
         .find(|m| m["id"] == "network")
         .unwrap();
-    assert_eq!(data["availability"], "planned");
+    assert_eq!(data["availability"], "available");
+    assert_eq!(data["version"], "0.1.0");
     assert!(
         modules
             .as_array()

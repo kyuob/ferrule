@@ -94,7 +94,7 @@ NVR, RTSP, camera recording and their dependencies are excluded from Ferrule's s
 | ble | Optional central BLE transport and Rust sensor protocol handling | Foreground scanner + GATT inspector implemented; hardware/protocol validation pending |
 | data | Rust-owned local persistence and migrations | SQLite notes adapter, migrations and Flutter repository/UI implemented |
 | security | Platform key storage plus Rust application encryption | Experimental private-note payload encryption; device key lifecycle validation pending |
-| network | TLS HTTP initially; WebSocket/QUIC only when independently verified | Planned; no networking module installed |
+| network | Rust-owned bounded HTTPS GET; WebSocket/QUIC outside the current scope | HTTPS reader, verified TLS and local transport/bridge checks; device networking pending |
 
 ### Module contract
 
@@ -169,9 +169,11 @@ again under the operation lock. Older schema-1 records without module versions r
   The security module supplies a separate private-note example; the data module still
   has no encryption guarantee. See [security boundaries](security.md).
 - **Network:** preserve TLS/certificate verification. Never add global ATS exceptions or Android
-  cleartext allowances as the network default. Initialize the selected rustls provider centrally and
-  check the combined feature graph. `aws-lc-rs` is a candidate pending mobile toolchain verification;
-  RustCrypto application encryption is distinct from rustls provider selection.
+  cleartext allowances as the network default. The network 0.1 manifest pins reqwest 0.12.28 with
+  default features disabled and `blocking,rustls-tls`, selecting the ring fallback and bundled WebPKI
+  roots without installing a global provider. This verified 0.12 baseline avoids the platform-verifier
+  setup introduced by reqwest 0.13's default rustls feature. RustCrypto application encryption is
+  distinct from the TLS provider. See [network boundaries](network.md).
 - **Platform packaging:** keep Cargokit as the existing default. A separately distributed XCFramework
   is a later packaging choice, not an additional mandatory build layer for every generated app.
 
