@@ -114,6 +114,7 @@ after a crash, inspect the project before manually removing a stale lock.
 sh scripts/check.sh
 sh scripts/smoke.sh # real generation; requires Flutter and FRB generator
 sh scripts/data-smoke.sh # notes CRUD, migrations, real Dart/Rust bridge and BLE composition
+sh scripts/android-ble-smoke.sh # sequential BLE-only and BLE/data APK builds; requires Android SDK
 sh scripts/platform-smoke.sh PATH_TO_SYNCED_APP both # compile only; needs both SDKs
 sh scripts/ferrule.sh doctor # run directly from this checkout without a global install
 ```

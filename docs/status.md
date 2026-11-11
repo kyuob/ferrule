@@ -35,18 +35,22 @@
   invocation incompatibility. It does not boot, install or launch the app.
 - A separately generated data-only Android app compiled successfully to a debug APK on
   the installed Android SDK/NDK toolchain. No installation or on-device execution was performed.
-- Combined Android build is blocked: permission_handler_android 14.1.1 uses AGP 9/Kotlin
-  configuration incompatible with the Flutter scaffold's AGP 8.11.1. Android support is
-  not certified; pinning/upgrading that dependency graph needs a separate verified change.
+- Android BLE compatibility fix (2026-11-11): BLE 0.1.1 pins permission_handler 12.0.1,
+  resolving Android plugin 13.0.1 for the scaffold's AGP 8.11.1. Fresh BLE-only and
+  BLE/data apps both passed Dart analysis, generated Rust tests (3 and 9 respectively)
+  and Android debug APK compilation. The prior Android 14.1.1 / AGP 9 blocker is resolved.
+  The new sequential `scripts/android-ble-smoke.sh` reproduces this compilation gate.
+- Current builder regression suite: 34 library + 6 CLI tests, rustfmt and Clippy passed.
+  Legacy BLE version acceptance and write-free repeated add are covered. Independent
+  read-only review found no blocking issue in the dependency/version compatibility change.
 - Physical-device storage, lifecycle and BLE discovery/permissions: not yet verified.
 
 ## Remaining before a release
 
-1. Resolve the Android BLE permission-plugin/AGP compatibility blocker and compile supported combinations.
-2. Verify scan authorization, denial, powered-off, discovery and cancellation on iOS/Android devices.
-3. Improve customized-project module merges and recovery from interrupted writes.
-4. Add complete BLE connection/GATT/notification adapter if required by the first example app.
-5. Package registry name availability, release packaging and expanded installation docs.
+1. Verify scan authorization, denial, powered-off, discovery and cancellation on iOS/Android devices.
+2. Improve customized-project module merges and recovery from interrupted writes.
+3. Add complete BLE connection/GATT/notification adapter if required by the first example app.
+4. Package registry name availability, release packaging and expanded installation docs.
 
 ## Accepted development direction
 
@@ -55,6 +59,6 @@ Flutter project builder as the main product and excludes NVR/RTSP entirely. Plan
 modules are BLE, data, security and network; the BLE scanner and local SQLite notes are implemented.
 
 Module contracts/dependency resolution and configuration merging are implemented. Next work is
-security, BLE expansion, then network, after the mobile compatibility gate above. These are development
+security, BLE expansion, then network, alongside the remaining device validation above. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

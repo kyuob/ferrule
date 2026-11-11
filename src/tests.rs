@@ -245,8 +245,43 @@ fn older_schema_one_project_can_add_a_module_without_losing_comments() {
             .module_versions
             .get("ble")
             .unwrap(),
+        "0.1.1"
+    );
+}
+
+#[test]
+fn ble_permissions_policy_and_legacy_records_are_preserved() {
+    let project = fixture();
+    add_ble(project.path()).unwrap();
+    let pubspec = read(project.path(), "pubspec.yaml").unwrap();
+    assert!(pubspec.contains("12.0.1"));
+    assert!(!pubspec.contains("13.0.2"));
+    // An older installed module is readable, but is not silently migrated.
+    let pubspec = pubspec.replace("12.0.1", "13.0.2");
+    fs::write(project.path().join("pubspec.yaml"), &pubspec).unwrap();
+    let mut record: toml_edit::DocumentMut =
+        read(project.path(), MANIFEST).unwrap().parse().unwrap();
+    record["module_versions"]["ble"] = toml_edit::value("0.1.0");
+    fs::write(project.path().join(MANIFEST), record.to_string()).unwrap();
+    assert_eq!(
+        load(project.path()).unwrap().module_versions["ble"],
         "0.1.0"
     );
+    assert!(
+        preview_add(project.path(), &["ble".into()])
+            .unwrap()
+            .changes
+            .is_empty()
+    );
+    let record = read(project.path(), MANIFEST).unwrap();
+    assert!(
+        add_modules(project.path(), &["ble".into()])
+            .unwrap()
+            .changes
+            .is_empty()
+    );
+    assert_eq!(read(project.path(), MANIFEST).unwrap(), record);
+    assert_eq!(read(project.path(), "pubspec.yaml").unwrap(), pubspec);
 }
 
 #[test]

@@ -1,6 +1,7 @@
 schema = 1
 id = "ble"
-version = "0.1.0"
+version = "0.1.1"
+compatible_versions = ["0.1.0"]
 availability = "available"
 description = "Optional Flutter-native mobile BLE scanner and Rust packet decoding"
 platforms = ["ios", "android"]
@@ -12,7 +13,8 @@ checks = ["flutter analyze", "cargo test --manifest-path rust/Cargo.toml", "devi
 
 [flutter_dependencies]
 flutter_reactive_ble = "5.5.0"
-permission_handler = "13.0.2"
+# 13.x requires an AGP-9 plugin; the Flutter 3.41 scaffold uses AGP 8.
+permission_handler = "12.0.1"
 device_info_plus = "11.5.0"
 
 [[flutter_pages]]

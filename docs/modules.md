@@ -38,6 +38,16 @@ Bluetooth, background scanning, hardware validation, or automatic reconnection.
 Apps deriving location must revise declarations/permission policy rather than reusing it blindly.
 The module does not add iOS background modes or request location permissions on iOS.
 
+BLE 0.1.1 pins `permission_handler` to 12.0.1 for the Flutter 3.41 / AGP 8 scaffold.
+The 13.0.2 package resolves Android plugin 14.x, whose AGP 9 Kotlin configuration
+does not compile with that scaffold. Existing BLE 0.1.0 records remain readable;
+repeating `add ble` does not migrate their dependencies. To repair such a project,
+review and change its direct `permission_handler` constraint to `12.0.1`, run
+`ferrule sync`, inspect the updated pub lockfile, and re-run analysis and platform
+builds. Do not edit the global pub cache or add a dependency override as a workaround.
+`scripts/android-ble-smoke.sh` generates both BLE-only and BLE/data apps, analyzes
+them, runs their Rust tests and compiles debug APKs without installing them.
+
 ## Adding to customized projects
 
 Automatic module addition currently targets unchanged Ferrule-owned entrypoint and
