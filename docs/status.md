@@ -120,6 +120,8 @@ did not use a device are historical boundaries, not a reversal of the owner's la
 
 ## Release packaging verification
 
+These local-preparation records precede the public release verified below.
+
 - On macOS ARM64, native optimized CLI packaging and archive checksum verification passed.
   The binary was copied to a temporary prefix, exercised through version/help/catalog and
   core/four-module offline plans, then removed. No global installation was changed.
@@ -133,13 +135,25 @@ did not use a device are historical boundaries, not a reversal of the owner's la
 - Work was performed by one agent under the user's single-agent instruction; no independent
   review was performed. No tag, public release, registry entry or remote push was made.
 
-## Remaining before a release
+## Published v0.1.0 pre-release
 
-1. Run and inspect the three-OS package CI at the intended clean release revision.
-2. Obtain explicit tag/release approval, publish tested assets and verify actual download links.
-3. Optional later work: customized-project merges, abandoned-staging diagnostics and
-   protocol-specific sensor logger examples. Automatic module upgrade/removal remains unsupported.
-4. Optional registry distribution/name reservation; the first prepared route uses GitHub assets.
+- Published with explicit user approval on 2026-11-11:
+  [v0.1.0](https://github.com/kyuob/ferrule/releases/tag/v0.1.0).
+- Annotated remote tag resolves to `31811553ec3b7e6545fdc423eba5cbd36f44450d`.
+  [CI run 42951802964](https://github.com/kyuob/ferrule/actions/runs/42951802964) passed all
+  three native Rust/test/build/install jobs. Every archive records that source SHA and `dirty: false`.
+- Six assets are public: macOS aarch64, Linux x86-64 GNU and Windows x86-64 MSVC archives,
+  each with its checksum. Anonymous downloads matched the approved CI-built bytes exactly.
+  No package rebuild, registry publication or tag force-push was performed.
+- Installation/release guides and changelog link to the verified public assets.
+  The released tag and its tested archive bytes stay fixed.
+
+## Optional work after the first preview
+
+1. Customized-project merges, abandoned-staging diagnostics and protocol-specific sensor examples.
+   Automatic module upgrade/removal remains unsupported.
+2. Additional CLI host architectures, signing/notarization and optional registry distribution.
+3. Collect detailed device/OS/protocol matrices for future compatibility claims.
 
 ## Accepted development direction
 
@@ -149,6 +163,6 @@ modules are BLE, data, security and network; foreground BLE scanning/GATT, SQLit
 private-note payload encryption and bounded HTTPS text fetching are implemented.
 
 Module contracts/dependency resolution and configuration merging are implemented. The owner has
-reported device verification complete; next work is release preparation and customized-project merges. These are development
+reported device verification complete and v0.1.0 is published; further work includes customized-project merges. These are development
 increments, not prerequisites retroactively claimed complete by the initial MVP. Module support
 requires generated-app compilation and relevant device tests, not just CLI tests.

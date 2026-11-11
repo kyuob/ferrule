@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0 — prepared, not yet released
+## 0.1.0 — 2026-11-11 (pre-release)
+
+[Public release and downloads](https://github.com/kyuob/ferrule/releases/tag/v0.1.0).
 
 - Rust CLI creates Flutter/Rust iOS and Android projects with FRB 2.13.0/Cargokit.
 - Optional modules: foreground BLE scanner/GATT inspector, Rust SQLite notes,

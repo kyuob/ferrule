@@ -1,8 +1,12 @@
 # Release preparation
 
 The CLI is version **0.1.0**; core and optional modules have separate contract versions.
-The repository currently uses source installation. No crates.io name is reserved and
-Cargo publication is disabled. This workflow prepares native GitHub Release assets;
+The [v0.1.0 public pre-release](https://github.com/kyuob/ferrule/releases/tag/v0.1.0)
+was published on 2026-11-11 from commit `31811553ec3b7e6545fdc423eba5cbd36f44450d`.
+It includes the six tested archives/checksums from [CI run 42951802964](https://github.com/kyuob/ferrule/actions/runs/42951802964).
+The annotated tag, public state, release notes and unauthenticated download hashes were verified.
+Source and native archive installation are available. No crates.io name is reserved and
+Cargo publication is disabled. The workflow prepares native GitHub Release assets;
 it does not publish them, push tags or create a GitHub Release automatically.
 
 ## Local preview
@@ -48,7 +52,7 @@ The actual target triple is recorded in the asset; this is not a matrix of every
 These artifacts are build outputs, not a public release. Remote runs are unverified until
 the workflow has actually executed successfully at the intended source revision.
 
-## First public release checklist
+## Release checklist
 
 1. Review changelog, user-reported device verification and known limitations in
    [status](status.md). Keep the source commit clean and record the exact revision.

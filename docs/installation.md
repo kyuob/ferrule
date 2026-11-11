@@ -26,10 +26,19 @@ To change your installed CLI later, review the new revision and repeat the insta
 command with Cargo's `--force` option. This updates the CLI executable, not generated apps.
 Use `cargo uninstall ferrule` to remove a Cargo-installed CLI. Keep generated apps separately.
 
-## Install a packaged executable after the first release
+## Install the v0.1.0 pre-release executable
 
-No public binary release exists yet. The following instructions describe the prepared
-archive format; do not assume CI artifacts are published or signed releases.
+The [public v0.1.0 pre-release](https://github.com/kyuob/ferrule/releases/tag/v0.1.0)
+contains these tested native archives and matching checksums:
+
+| Host | Archive | SHA-256 file |
+| --- | --- | --- |
+| macOS Apple Silicon | [tar.gz](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-aarch64-apple-darwin.tar.gz) | [checksum](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-aarch64-apple-darwin.tar.gz.sha256) |
+| Linux x86-64 GNU | [tar.gz](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-x86_64-unknown-linux-gnu.tar.gz) | [checksum](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-x86_64-unknown-linux-gnu.tar.gz.sha256) |
+| Windows x86-64 MSVC | [zip](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-x86_64-pc-windows-msvc.zip) | [checksum](https://github.com/kyuob/ferrule/releases/download/v0.1.0/ferrule-0.1.0-x86_64-pc-windows-msvc.zip.sha256) |
+
+All six public downloads were fetched without credentials and compared with the approved
+CI outputs. These are unsigned early-preview packages, not universally compatible binaries.
 
 Choose the exact native OS/CPU asset from the approved GitHub Release and download its
 matching `.sha256` file. Packages use the Rust host triple in the filename:

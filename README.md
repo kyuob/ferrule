@@ -5,7 +5,8 @@ A Rust CLI that creates Flutter + Rust apps and installs optional app modules.
 Ferrule is a **project builder**. Bluetooth is an optional module, not a requirement
 of generated apps. The initial supported application targets are iOS and Android.
 This is an early MVP with source at [kyuob/ferrule](https://github.com/kyuob/ferrule).
-Native archive/checksum packaging is prepared; no public packaged release is available yet.
+[v0.1.0 is available as a public pre-release](https://github.com/kyuob/ferrule/releases/tag/v0.1.0)
+with native macOS Apple Silicon, Linux x86-64 and Windows x86-64 packages/checksums.
 The name has not been reserved on package registries.
 The verified SDK baseline is Flutter 3.41.2 / Dart 3.11.0; BLE requires Flutter >=3.41.
 
@@ -190,7 +191,7 @@ Flutter 화면과 Rust 코드의 연동을 제공하며, BLE는 필요한 앱에
 `--modules security`는 별도의 암호화 비공개 메모 예제를 추가합니다. 기존 SQLite
 메모는 평문으로 유지됩니다. 사용자가 2026-11-11 실기기 검증 완료를 확인했으며,
 검증 기기와 세부 시나리오는 아직 문서화되지 않았습니다.
-현재는 초기 MVP이며, 실행 파일 패키지 준비와 공개 배포는 별도 단계입니다.
+현재는 초기 MVP이며, v0.1.0 실행 파일을 GitHub 사전 릴리스에서 받을 수 있습니다.
 설치 방법과 자주 묻는 질문은 위 가이드 링크에서 확인할 수 있습니다.
 `--modules network`는 Rust HTTPS GET 예제를 추가합니다. 동기화, AI, 상태관리 프리셋은 아직 구현하지 않았습니다.
 확장 방향은 [모듈 설계](docs/modules.md#adopted-architecture-direction)에 정리했습니다.
