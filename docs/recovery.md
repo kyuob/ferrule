@@ -1,4 +1,35 @@
-# Interrupted module writes
+# Interrupted operations
+
+## Creating a new project
+
+Generation and initial module composition take place in a hidden `.ferrule-create-*`
+directory beside the destination. Only after they succeed does Ferrule install the
+complete project tree with one atomic no-replace directory rename. It does not reserve
+an empty destination or move individual entries. A destination that appears during
+generation, including an empty folder or a dangling symlink, is preserved and creation fails.
+
+The pinned `renamore` 0.3.2 implementation uses `renameat2(RENAME_NOREPLACE)` on Linux,
+`renamex_np(RENAME_EXCL)` on macOS and `MoveFileExW` without replacement flags on Windows.
+Unsupported OS/filesystem combinations fail closed; no non-atomic fallback is used.
+See [the upstream operation contract](https://docs.rs/renamore/0.3.2/renamore/fn.rename_exclusive.html).
+
+For process interruption at the final move, the destination is either absent or a complete
+tree. This is a filesystem visibility guarantee, not a promise of power-loss durability.
+If the process stops after the move but before reporting success, inspect the existing
+project rather than retrying into it. Module previews can inspect a complete managed app.
+
+A killed generator/Ferrule process can leave its hidden staging directory. Confirm the
+process has stopped before inspecting or manually removing that exact directory. Ferrule
+does not automatically resume it or remove abandoned staging folders. Previous versions'
+incomplete destination folders still need manual review; `recover` cannot repair them.
+
+The offline suite exercises complete-tree movement, existing empty/populated directories
+and files, competing creators, Unix symlink targets and process termination immediately
+before/after the rename. It does not inject a power failure or kill a kernel syscall midway.
+`sh scripts/creation-smoke.sh` additionally runs the actual upstream generator and checks
+ownership, expected project entries and refusal to recreate the same destination.
+
+## Interrupted module writes
 
 Before changing managed files, Ferrule persists `.ferrule-transaction.json` in the
 project root. It contains original bytes and expected after-state hashes. Successful
@@ -37,8 +68,9 @@ writers are accepted. Case/separator aliases and arbitrary repository paths are 
 - Pausing other writers is required. Filesystem checks do not coordinate with editors
   or hostile concurrent processes. No power-loss, filesystem-corruption or atomic
   multi-file-commit guarantee is made.
-- Interrupted new-project final moves and generator/package-manager writes during
-  `sync` are outside this journal. Existing destinations are still preserved.
+- Project creation uses the whole-directory operation described above, outside this
+  journal. Generator/package-manager writes during `sync` and older incomplete
+  creation destinations are not repaired by module recovery.
 
 The offline suite covers partial writes, completed writes with a remaining journal,
 ordinary second-write failure, interrupted rollback, edited-file conflicts,

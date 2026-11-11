@@ -27,6 +27,9 @@
 - Optional network 0.1: Rust HTTPS GET, verified certificates/hostnames, no redirects/proxies,
   bounded UTF-8 bodies, request deadlines and a manual Flutter plain-text viewer.
   No global ATS exceptions or Android cleartext opt-ins are added.
+- New-project installation moves the complete staged directory with atomic no-replace
+  rename, preserving competing destinations and failing closed on unsupported filesystems.
+  Hidden staging leftovers and incomplete destinations from older versions need manual review.
 
 ## Verification
 
@@ -93,11 +96,19 @@
   The four-module app also compiled for iOS simulator and Android debug APK; compiled Android
   backup policy and configured iOS Keychain entitlements remained intact. No app was installed
   or launched, and physical-device networking remains unverified.
+- Creation safety increment: 53 library + 7 CLI tests, rustfmt and Clippy passed on macOS.
+  One ignored worker is invoked by the process-termination test, not a standalone test.
+  Complete-tree installation, competing creators, existing empty/populated directories/files,
+  Unix symlink destinations and termination before/after rename are covered. Real upstream
+  core generation passed, with complete ownership/configuration entries, a write-free module
+  preview and refusal to recreate the destination. Windows/Linux runtime execution remains
+  unverified locally; the existing three-OS CI includes these tests. This increment was
+  implemented and checked by one agent under the user's single-agent instruction.
 
 ## Remaining before a release
 
 1. Verify security key lifecycle/lock/restore and BLE authorization/discovery/cancellation on devices.
-2. Improve customized-project module merges and recovery from interrupted project-creation moves.
+2. Improve customized-project module merges; optional explicit abandoned-staging diagnostics.
 3. Optional first-app work: protocol-specific persistent sensor logger and device validation.
 4. Package registry name availability, release packaging and expanded installation docs.
 

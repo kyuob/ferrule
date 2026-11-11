@@ -129,9 +129,11 @@ the plan under its own lock; a dry-run is not authorization to overwrite later e
 Module versions are recorded in `ferrule.toml`; original schema-1 projects without this
 optional version table remain readable. Automatic upgrades and third-party plugins are not supported.
 
-Creation requires a new destination and stages generation beside it before moving.
-An interrupted final move may leave an incomplete destination; Ferrule never removes
-an existing destination to retry. `add ble` refuses modified owned templates or
+Creation requires a new destination and stages generation beside it before moving the
+complete directory in one atomic no-replace operation. Competing destinations, including
+empty directories, are never replaced. Unsupported filesystems fail without a copy/move fallback.
+Abrupt termination can leave a hidden staging directory for manual review; old incomplete
+destinations are not repaired or removed. `add ble` refuses modified owned templates or
 unexpected platform layouts. It validates the complete edit set before writing and
 restores previous file contents on ordinary write failures. Process termination or
 an interrupted rollback can be recovered using the local transaction journal:
@@ -139,8 +141,8 @@ an interrupted rollback can be recovered using the local transaction journal:
 Recovery validates every target before writing and refuses subsequent user edits.
 Keep editors and competing operations stopped during addition/recovery. `.ferrule.lock`
 prevents overlapping Ferrule operations; stale locks require manual review.
-This is process-interruption recovery, not power-loss atomicity or project-creation
-move recovery. See [recovery steps and limits](docs/recovery.md).
+Module recovery does not cover power loss, generator/sync changes or old incomplete
+creation folders. See [recovery steps and limits](docs/recovery.md).
 
 ## Development
 

@@ -1,5 +1,199 @@
 use super::*;
 
+fn staged_tree(parent: &Path, name: &str, content: &str) -> PathBuf {
+    let project = parent.join(name);
+    fs::create_dir_all(project.join("lib/empty")).unwrap();
+    fs::write(project.join(MANIFEST), content).unwrap();
+    fs::write(project.join("lib/main.dart"), content).unwrap();
+    fs::write(project.join(".gitignore"), "build/\n").unwrap();
+    project
+}
+
+#[test]
+fn staged_creation_installs_the_entire_tree_without_reserving_an_empty_destination() {
+    let parent = tempfile::tempdir().unwrap();
+    let stage = staged_tree(parent.path(), "stage", "complete");
+    let target = parent.path().join("app");
+    install_staged_project(&stage, &target).unwrap();
+    assert!(!stage.exists());
+    assert_eq!(
+        fs::read_to_string(target.join(MANIFEST)).unwrap(),
+        "complete"
+    );
+    assert_eq!(
+        fs::read_to_string(target.join("lib/main.dart")).unwrap(),
+        "complete"
+    );
+    assert_eq!(
+        fs::read_to_string(target.join(".gitignore")).unwrap(),
+        "build/\n"
+    );
+    assert!(target.join("lib/empty").is_dir());
+    assert!(install_staged_project(&stage, &target).is_err());
+    assert_eq!(
+        fs::read_to_string(target.join(MANIFEST)).unwrap(),
+        "complete"
+    );
+}
+
+#[test]
+fn staged_creation_refuses_competing_empty_directories_files_and_populated_directories() {
+    for kind in ["empty", "file", "populated"] {
+        let parent = tempfile::tempdir().unwrap();
+        let stage = staged_tree(parent.path(), "stage", "generated");
+        let target = parent.path().join("app");
+        if kind == "file" {
+            fs::write(&target, "user file").unwrap();
+        } else {
+            fs::create_dir(&target).unwrap();
+            if kind == "populated" {
+                fs::write(target.join("user.txt"), "user content").unwrap();
+            }
+        }
+        assert!(install_staged_project(&stage, &target).is_err());
+        assert_eq!(
+            fs::read_to_string(stage.join(MANIFEST)).unwrap(),
+            "generated"
+        );
+        if kind == "file" {
+            assert_eq!(fs::read_to_string(&target).unwrap(), "user file");
+        } else if kind == "populated" {
+            assert_eq!(
+                fs::read_to_string(target.join("user.txt")).unwrap(),
+                "user content"
+            );
+            assert_eq!(fs::read_dir(&target).unwrap().count(), 1);
+        } else {
+            assert_eq!(fs::read_dir(&target).unwrap().count(), 0);
+        }
+    }
+}
+
+#[test]
+fn staged_creation_has_exactly_one_winner_when_creators_race() {
+    let parent = tempfile::tempdir().unwrap();
+    let left = staged_tree(parent.path(), "left", "left");
+    let right = staged_tree(parent.path(), "right", "right");
+    let target = parent.path().join("app");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let results: Vec<_> = [left.clone(), right.clone()]
+        .into_iter()
+        .map(|stage| {
+            let target = target.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                install_staged_project(&stage, &target).is_ok()
+            })
+        })
+        .collect();
+    let wins: Vec<_> = results
+        .into_iter()
+        .map(|thread| thread.join().unwrap())
+        .collect();
+    assert_eq!(wins.iter().filter(|win| **win).count(), 1);
+    let winner = if wins[0] { "left" } else { "right" };
+    assert_eq!(fs::read_to_string(target.join(MANIFEST)).unwrap(), winner);
+    assert_eq!(
+        fs::read_to_string(target.join("lib/main.dart")).unwrap(),
+        winner
+    );
+    assert_eq!(left.exists(), !wins[0]);
+    assert_eq!(right.exists(), !wins[1]);
+}
+
+#[cfg(unix)]
+#[test]
+fn staged_creation_never_replaces_symlink_destinations() {
+    use std::os::unix::fs::symlink;
+    for dangling in [true, false] {
+        let parent = tempfile::tempdir().unwrap();
+        let stage = staged_tree(parent.path(), "stage", "generated");
+        let target = parent.path().join("app");
+        let other = parent.path().join("other");
+        if !dangling {
+            fs::create_dir(&other).unwrap();
+        }
+        symlink(&other, &target).unwrap();
+        assert!(install_staged_project(&stage, &target).is_err());
+        assert_eq!(fs::read_link(&target).unwrap(), other);
+        assert!(stage.join(MANIFEST).is_file());
+    }
+}
+
+#[test]
+fn staged_creation_refuses_incomplete_sources_without_creating_a_destination() {
+    let parent = tempfile::tempdir().unwrap();
+    let stage = parent.path().join("stage");
+    fs::create_dir(&stage).unwrap();
+    let target = parent.path().join("app");
+    assert!(install_staged_project(&stage, &target).is_err());
+    assert!(!target.exists());
+    assert!(stage.is_dir());
+}
+
+// Separate process so termination cannot run TempDir destructors in the worker.
+#[test]
+#[ignore = "only launched by staged_creation_process_interruption_leaves_absent_or_complete_target"]
+fn creation_interruption_worker() {
+    let parent = PathBuf::from(std::env::var_os("FERRULE_CREATION_TEST_ROOT").unwrap());
+    let stage = staged_tree(&parent, "stage", "complete");
+    if std::env::var("FERRULE_CREATION_TEST_PHASE").unwrap() == "after" {
+        install_staged_project(&stage, &parent.join("app")).unwrap();
+    }
+    fs::write(parent.join("ready"), "ready").unwrap();
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+#[test]
+fn staged_creation_process_interruption_leaves_absent_or_complete_target() {
+    for phase in ["before", "after"] {
+        let parent = tempfile::tempdir().unwrap();
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tests::creation_interruption_worker",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("FERRULE_CREATION_TEST_ROOT", parent.path())
+            .env("FERRULE_CREATION_TEST_PHASE", phase)
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = std::time::Instant::now();
+        while !parent.path().join("ready").is_file()
+            && start.elapsed() < std::time::Duration::from_secs(10)
+        {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let ready = parent.path().join("ready").is_file();
+        let _ = child.kill();
+        child.wait().unwrap();
+        assert!(ready, "worker did not reach {phase} boundary");
+        let target = parent.path().join("app");
+        if phase == "before" {
+            assert!(!target.exists());
+            assert!(parent.path().join("stage/lib/main.dart").is_file());
+        } else {
+            assert_eq!(
+                fs::read_to_string(target.join(MANIFEST)).unwrap(),
+                "complete"
+            );
+            assert_eq!(
+                fs::read_to_string(target.join("lib/main.dart")).unwrap(),
+                "complete"
+            );
+            assert!(!parent.path().join("stage").exists());
+        }
+    }
+}
+
 fn fixture() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     for (path, text) in [

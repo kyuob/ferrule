@@ -195,21 +195,24 @@ pub fn create_with_modules(name: &str, directory: &Path, requested: &[String]) -
     let project = staging.path().join(name);
     initialize(&project, name)?;
     add_modules(&project, &plan.modules)?;
-    // Reserve the destination: a competing creator must not be overwritten.
-    fs::create_dir(&target).context("destination appeared during generation")?;
-    let mut entries = fs::read_dir(&project)?.collect::<std::io::Result<Vec<_>>>()?;
-    // Install the ownership marker last, so an interrupted move is never accepted
-    // as a managed project. Never delete a destination to make rename succeed.
-    entries.sort_by_key(|entry| entry.file_name() == MANIFEST);
-    for entry in entries {
-        fs::rename(entry.path(), target.join(entry.file_name())).with_context(|| {
-            format!(
-                "could not finish staged move; incomplete project at {}",
-                target.display()
-            )
-        })?;
-    }
+    install_staged_project(&project, &target)?;
     Ok(target)
+}
+
+/// Commit the complete staged tree in one no-replace filesystem operation.
+/// Never reserve an empty destination or fall back to check-then-rename/copy.
+fn install_staged_project(project: &Path, target: &Path) -> Result<()> {
+    let metadata = project.symlink_metadata()?;
+    ensure!(
+        metadata.is_dir() && !metadata.file_type().is_symlink() && project.join(MANIFEST).is_file(),
+        "staged project is incomplete or is not a directory"
+    );
+    renamore::rename_exclusive(project, target).with_context(|| {
+        format!(
+            "could not install complete project at {}; destination must be absent and the filesystem must support atomic no-replace rename (no fallback attempted)",
+            target.display()
+        )
+    })
 }
 
 /// Initialize a freshly generated, unpublished staging directory.
